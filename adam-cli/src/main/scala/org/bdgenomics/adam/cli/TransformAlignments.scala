@@ -562,8 +562,10 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
       mergedSd
     }
 
-    outputRdd.save(args,
-      isSorted = args.sortReads || args.sortLexicographically)
+    //    outputRdd.save(args,
+    //      isSorted = args.sortReads || args.sortLexicographically)
+
+    outputRdd.saveAsPartitionedParquet(args.outputPath, args.compressionCodec)
   }
 
   private def createKnownSnpsTable(sc: SparkContext): SnpTable = {

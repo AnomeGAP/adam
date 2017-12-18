@@ -2517,4 +2517,28 @@ abstract class AvroGenomicRDD[T <% IndexedRecord: Manifest, U <: Product, V <: A
   def saveAsParquet(filePath: java.lang.String) {
     saveAsParquet(new JavaSaveArgs(filePath))
   }
+
+  def saveAsPartitionedParquet(filePath: String,
+                               compressCodec: CompressionCodecName = CompressionCodecName.GZIP,
+                               partitionSize: Int = 1000000) {
+    log.warn("Saving directly as Hive-partitioned Parquet from SQL. " +
+      "Options other than compression codec are ignored.")
+    val df = toDF()
+    import org.apache.spark.sql.functions._
+    df.withColumn("posBin", floor(df("start") / partitionSize))
+      .write
+      .partitionBy("contig", "posBin")
+      .format("parquet")
+      .option("spark.sql.parquet.compression.codec", compressCodec.toString.toLowerCase())
+      .save(filePath)
+    writePartitionedParquetFlag(filePath)
+    //rdd.context.writePartitionedParquetFlag(filePath)
+    saveMetadata(filePath)
+  }
+
+  def writePartitionedParquetFlag(filePath: String): Boolean = {
+    val path = new Path(filePath, "_isPartitionedByStartPos")
+    val fs = path.getFileSystem(toDF().sqlContext.sparkContext.hadoopConfiguration)
+    fs.createNewFile(path)
+  }
 }
