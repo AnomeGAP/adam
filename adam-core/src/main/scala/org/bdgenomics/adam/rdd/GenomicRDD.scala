@@ -2527,7 +2527,7 @@ abstract class AvroGenomicRDD[T <% IndexedRecord: Manifest, U <: Product, V <: A
     import org.apache.spark.sql.functions._
     df.withColumn("posBin", floor(df("start") / partitionSize))
       .write
-      .partitionBy("contig", "posBin")
+      .partitionBy("contigName", "posBin")
       .format("parquet")
       .option("spark.sql.parquet.compression.codec", compressCodec.toString.toLowerCase())
       .save(filePath)
