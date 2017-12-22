@@ -2526,6 +2526,8 @@ abstract class AvroGenomicRDD[T <% IndexedRecord: Manifest, U <: Product, V <: A
     val df = toDF()
     import org.apache.spark.sql.functions._
     df.withColumn("posBin", floor(df("start") / partitionSize))
+      .repartition(col("contigName"), col("posBin"))
+      .sortWithinPartitions("contigName", "start")
       .write
       .partitionBy("contigName", "posBin")
       .format("parquet")
