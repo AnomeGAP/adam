@@ -131,6 +131,8 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   var storageLevel: String = "MEMORY_ONLY"
   @Args4jOption(required = false, name = "-disable_pg", usage = "Disable writing a new @PG line.")
   var disableProcessingStep = false
+  @Args4jOption(required = false, name = "-atgx_transform", usage = "Enable Atgenomix transformation.")
+  var atgxTransform = false
 
   var command: String = null
 }
@@ -562,8 +564,21 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
       mergedSd
     }
 
-    outputRdd.save(args,
-      isSorted = args.sortReads || args.sortLexicographically)
+    if (args.atgxTransform) {
+      import AtgxTransformAlignments._
+      val dict = mkPosBinIndices(sd)
+      val rdd = outputRdd.rdd.mapPartitions(new AtgxTransformAlignments().transform(sd, _))
+        .repartitionAndSortWithinPartitions(new NewPosBinPartitioner(dict))
+        .map(_._2)
+
+      AlignmentRecordRDD(rdd, outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
+        .save(args, isSorted = args.sortReads || args.sortLexicographically)
+
+      renameWithXPrefix(args.outputPath, dict)
+    } else {
+      outputRdd.save(args,
+        isSorted = args.sortReads || args.sortLexicographically)
+    }
   }
 
   private def createKnownSnpsTable(sc: SparkContext): SnpTable = {
