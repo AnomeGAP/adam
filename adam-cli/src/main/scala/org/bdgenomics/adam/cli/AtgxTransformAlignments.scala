@@ -1,15 +1,16 @@
 package org.bdgenomics.adam.cli
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.fs.{ FileSystem, Path }
 import org.apache.spark.Partitioner
 import org.bdgenomics.adam.models.SequenceDictionary
 import org.bdgenomics.formats.avro.AlignmentRecord
 
 object AtgxTransformAlignments {
   def mkPosBinIndices(sd: SequenceDictionary, partitionSize: Int = 1000000): Map[String, Int] = {
-    val stopwords = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random")
+    val stopwords = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap")
     val filteredContigNames = sd.records.filterNot(x => stopwords.exists(x.name.contains))
+      .sortBy(x => x.referenceIndex.get)
       .map(x => if (x.name.startsWith("HLA-")) "HLA=0" else x.name + "=" + x.length)
       .distinct // distinct: deduplication of 'HLA=0'
 
@@ -105,7 +106,7 @@ class AtgxTransformAlignments {
     val map = ((1 to 22).map(i => "chr" + i) ++ Seq("chrX", "chrY", "chrM")).zipWithIndex.toMap
     val refIndexMap = sd.records.map(x => (x.name, "%05d".format(x.referenceIndex.get))).toMap
 
-    val words = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random")
+    val words = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap")
 
     while (iter.hasNext) {
       val x = iter.next()
