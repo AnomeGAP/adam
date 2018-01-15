@@ -8,7 +8,7 @@ import org.bdgenomics.formats.avro.AlignmentRecord
 
 object AtgxTransformAlignments {
   def mkPosBinIndices(sd: SequenceDictionary, partitionSize: Int = 1000000): Map[String, Int] = {
-    val stopwords = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap")
+    val stopwords = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap", "GL000")
     val filteredContigNames = sd.records.filterNot(x => stopwords.exists(x.name.contains))
       .sortBy(x => x.referenceIndex.get)
       .map(x => if (x.name.startsWith("HLA-")) "HLA=0" else x.name + "=" + x.length)
@@ -86,13 +86,22 @@ class AtgxTransformAlignments {
   // |  chrM   |  16571      |  16569      |  17000      |
   // +---------------------------------------------------+
   def mkBinSizeMap(fold: Int = 10): Map[String, Int] = {
-    Map("chr1" -> 250000000, "chr2" -> 244000000, "chr3" -> 199000000,
+    Map(
+      "chr1" -> 250000000, "chr2" -> 244000000, "chr3" -> 199000000,
       "chr4" -> 192000000, "chr5" -> 182000000, "chr6" -> 172000000, "chr7" -> 160000000,
       "chr8" -> 147000000, "chr9" -> 142000000, "chr10" -> 136000000, "chr11" -> 136000000,
       "chr12" -> 134000000, "chr13" -> 116000000, "chr14" -> 108000000, "chr15" -> 103000000,
       "chr16" -> 91000000, "chr17" -> 84000000, "chr18" -> 81000000, "chr19" -> 60000000,
       "chr20" -> 65000000, "chr21" -> 49000000, "chr22" -> 52000000, "chrX" -> 157000000,
-      "chrY" -> 60000000, "chrM" -> 17000)
+      "chrY" -> 60000000, "chrM" -> 17000,
+      "1" -> 250000000, "2" -> 244000000, "3" -> 199000000,
+      "4" -> 192000000, "5" -> 182000000, "6" -> 172000000, "7" -> 160000000,
+      "8" -> 147000000, "9" -> 142000000, "10" -> 136000000, "11" -> 136000000,
+      "12" -> 134000000, "13" -> 116000000, "14" -> 108000000, "15" -> 103000000,
+      "16" -> 91000000, "17" -> 84000000, "18" -> 81000000, "19" -> 60000000,
+      "20" -> 65000000, "21" -> 49000000, "22" -> 52000000, "X" -> 157000000,
+      "Y" -> 60000000, "MT" -> 17000
+    )
       .mapValues(v => v / fold)
   }
 
@@ -103,10 +112,13 @@ class AtgxTransformAlignments {
     val buf = scala.collection.mutable.ArrayBuffer.empty[(String, AlignmentRecord)]
 
     val binSizeMap = mkBinSizeMap()
-    val map = ((1 to 22).map(i => "chr" + i) ++ Seq("chrX", "chrY", "chrM")).zipWithIndex.toMap
+    val ucsc = ((1 to 22).map(i => "chr" + i) ++ Seq("chrX", "chrY", "chrM")).zipWithIndex
+    val grch37 = ((1 to 22).map(_.toString) ++ Seq("X", "Y", "MT")).zipWithIndex
+    val map = (ucsc ++ grch37).toMap
+
     val refIndexMap = sd.records.map(x => (x.name, "%05d".format(x.referenceIndex.get))).toMap
 
-    val words = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap")
+    val words = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap", "GL000")
 
     while (iter.hasNext) {
       val x = iter.next()
@@ -147,7 +159,10 @@ class NewPosBinPartitioner(dict: Map[String, Int]) extends Partitioner {
   override def numPartitions: Int = dict.size + 1 // null is the last one partition
 
   val X_UNMAPPED_PARTITION_NAME = "X-UNMAPPED"
-  val map: Map[String, Int] = ((1 to 22).map(i => "chr" + i) ++ Seq("chrX", "chrY", "chrM")).zipWithIndex.toMap
+
+  private val ucsc = ((1 to 22).map(i => "chr" + i) ++ Seq("chrX", "chrY", "chrM")).zipWithIndex
+  private val grch37 = ((1 to 22).map(_.toString) ++ Seq("X", "Y", "MT")).zipWithIndex
+  val map: Map[String, Int] = (ucsc ++ grch37).toMap
 
   override def getPartition(key: Any): Int = key match {
     case key: String =>
