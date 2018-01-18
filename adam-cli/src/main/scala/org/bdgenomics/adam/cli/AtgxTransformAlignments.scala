@@ -105,21 +105,24 @@ class AtgxTransformAlignments {
       .mapValues(v => v / fold)
   }
 
+  // sort the contigs by its ReferenceIndex in SequenceDirectory then zip them with index
+  def mkReferenceIdMap(sd: SequenceDictionary): Map[String, Int] = {
+    val ref: Map[String, Int] = sd.records.map(x => (x.name, x.referenceIndex.get)).toMap.withDefaultValue(10000)
+    val ucsc = (1 to 22).map(i => "chr" + i) ++ Seq("chrX", "chrY", "chrM")
+    val grch37 = (1 to 22).map(_.toString) ++ Seq("X", "Y", "MT")
+    (ucsc.map(x => (x, ref(x))).sortBy(_._2).map(_._1).zipWithIndex ++
+      grch37.map(x => (x, ref(x))).sortBy(_._2).map(_._1).zipWithIndex).toMap
+  }
+
   def transform(sd: SequenceDictionary, iter: Iterator[AlignmentRecord]): Iterator[(String, AlignmentRecord)] = {
     val X_UNMAPPED_PARTITION_NAME = "X-UNMAPPED"
     val partitionSize: Int = 1000000
-
-    val buf = scala.collection.mutable.ArrayBuffer.empty[(String, AlignmentRecord)]
-
     val binSizeMap = mkBinSizeMap()
-    val ucsc = ((1 to 22).map(i => "chr" + i) ++ Seq("chrX", "chrY", "chrM")).zipWithIndex
-    val grch37 = ((1 to 22).map(_.toString) ++ Seq("X", "Y", "MT")).zipWithIndex
-    val map = (ucsc ++ grch37).toMap
-
+    val map = mkReferenceIdMap(sd)
     val refIndexMap = sd.records.map(x => (x.name, "%05d".format(x.referenceIndex.get))).toMap
-
     val words = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap", "GL000")
 
+    val buf = scala.collection.mutable.ArrayBuffer.empty[(String, AlignmentRecord)]
     while (iter.hasNext) {
       val x = iter.next()
       if (x.getReadMapped == false) { // unmapped reads
