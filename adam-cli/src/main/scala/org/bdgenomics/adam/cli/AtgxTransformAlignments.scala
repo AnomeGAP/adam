@@ -1,7 +1,7 @@
 package org.bdgenomics.adam.cli
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{ FileSystem, Path }
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.Partitioner
 import org.bdgenomics.adam.models.SequenceDictionary
 import org.bdgenomics.formats.avro.AlignmentRecord
@@ -120,7 +120,7 @@ class AtgxTransformAlignments {
     val binSizeMap = mkBinSizeMap()
     val map = mkReferenceIdMap(sd)
     val refIndexMap = sd.records.map(x => (x.name, "%05d".format(x.referenceIndex.get))).toMap
-    val words = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap", "GL000")
+    val words = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap", "GL000", "hs37d5")
 
     val buf = scala.collection.mutable.ArrayBuffer.empty[(String, AlignmentRecord)]
     while (iter.hasNext) {
@@ -162,10 +162,6 @@ class NewPosBinPartitioner(dict: Map[String, Int]) extends Partitioner {
   override def numPartitions: Int = dict.size + 1 // null is the last one partition
 
   val X_UNMAPPED_PARTITION_NAME = "X-UNMAPPED"
-
-  private val ucsc = ((1 to 22).map(i => "chr" + i) ++ Seq("chrX", "chrY", "chrM")).zipWithIndex
-  private val grch37 = ((1 to 22).map(_.toString) ++ Seq("X", "Y", "MT")).zipWithIndex
-  val map: Map[String, Int] = (ucsc ++ grch37).toMap
 
   override def getPartition(key: Any): Int = key match {
     case key: String =>
