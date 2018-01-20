@@ -8,7 +8,7 @@ import org.bdgenomics.formats.avro.AlignmentRecord
 
 object AtgxTransformAlignments {
   def mkPosBinIndices(sd: SequenceDictionary, partitionSize: Int = 1000000): Map[String, Int] = {
-    val stopwords = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap", "GL000")
+    val stopwords = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap", "NC_007605", "GL000")
     val filteredContigNames = sd.records.filterNot(x => stopwords.exists(x.name.contains))
       .sortBy(x => x.referenceIndex.get)
       .map(x => if (x.name.startsWith("HLA-")) "HLA=0" else x.name + "=" + x.length)
@@ -120,7 +120,7 @@ class AtgxTransformAlignments {
     val binSizeMap = mkBinSizeMap()
     val map = mkReferenceIdMap(sd)
     val refIndexMap = sd.records.map(x => (x.name, "%05d".format(x.referenceIndex.get))).toMap
-    val words = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap", "GL000", "hs37d5")
+    val words = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap", "GL000", "NC_007605", "hs37d5")
 
     val buf = scala.collection.mutable.ArrayBuffer.empty[(String, AlignmentRecord)]
     while (iter.hasNext) {
