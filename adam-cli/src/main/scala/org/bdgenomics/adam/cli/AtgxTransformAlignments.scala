@@ -16,10 +16,11 @@ object AtgxTransformAlignments {
 
     // duplicated reads => given-name_chromosome-index=num_bins
     // the num_bins = 0 stands for only one bin, 9M will created 10 bins (0-9)
+    val um = (0 to 24).map(i => "X-UNMAPPED_" + "%05d".format(i) + "=0")
     val dr = (0 to 24).map(i => "X-DISCORDANT_" + "%05d".format(i) + "=0")
     val sc = (0 to 24).map(i => "X-SOFTCLIP_" + "%05d".format(i) + "=9000000")
 
-    (filteredContigNames ++ dr ++ sc)
+    (filteredContigNames ++ um ++ dr ++ sc)
       .flatMap(
         x => {
           val buf = scala.collection.mutable.ArrayBuffer.empty[String]
@@ -115,18 +116,19 @@ class AtgxTransformAlignments {
   }
 
   def transform(sd: SequenceDictionary, iter: Iterator[AlignmentRecord]): Iterator[(String, AlignmentRecord)] = {
-    val X_UNMAPPED_PARTITION_NAME = "X-UNMAPPED"
     val partitionSize: Int = 1000000
     val binSizeMap = mkBinSizeMap()
     val map = mkReferenceIdMap(sd)
     val refIndexMap = sd.records.map(x => (x.name, "%05d".format(x.referenceIndex.get))).toMap
     val words = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap", "GL000", "NC_007605", "hs37d5")
+    val r = new scala.util.Random // divide unmapped reads equally via random numbers
 
     val buf = scala.collection.mutable.ArrayBuffer.empty[(String, AlignmentRecord)]
     while (iter.hasNext) {
       val x = iter.next()
       if (x.getReadMapped == false) { // unmapped reads
-        buf += ((">" + X_UNMAPPED_PARTITION_NAME + "_" + X_UNMAPPED_PARTITION_NAME + "000000000", x))
+        val randomBinNumber = 0 + r.nextInt((24 - 0) + 1) // range: 0-24
+        buf += ((">X-UNMAPPED_" + "%05d".format(randomBinNumber) + "_0", x)) // e.g., X-UNMAPPED_00015_0
       } else {
         val contigName = x.getContigName
         if (!words.exists(contigName.contains)) { // filter out the unused records
@@ -159,9 +161,7 @@ class AtgxTransformAlignments {
 }
 
 class NewPosBinPartitioner(dict: Map[String, Int]) extends Partitioner {
-  override def numPartitions: Int = dict.size + 1 // null is the last one partition
-
-  val X_UNMAPPED_PARTITION_NAME = "X-UNMAPPED"
+  override def numPartitions: Int = dict.size
 
   override def getPartition(key: Any): Int = key match {
     case key: String =>
@@ -169,9 +169,8 @@ class NewPosBinPartitioner(dict: Map[String, Int]) extends Partitioner {
       val c = key.split("=")(0).split(">")(1)
       if (c.startsWith("HLA")) {
         dict("HLA_0")
-      } else if (c.startsWith(X_UNMAPPED_PARTITION_NAME)) {
-        numPartitions - 1
-      } else {
+      }
+      else {
         dict(c)
       }
   }
