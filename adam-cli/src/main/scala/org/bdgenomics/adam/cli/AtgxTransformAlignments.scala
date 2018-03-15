@@ -17,10 +17,9 @@ object AtgxTransformAlignments {
     // duplicated reads => given-name_chromosome-index=num_bins
     // the num_bins = 0 stands for only one bin, 9M will created 10 bins (0-9)
     val um = (0 to 24).map(i => "X-UNMAPPED_" + "%05d".format(i) + "=0")
-    val dr = (0 to 24).map(i => "X-DISCORDANT_" + "%05d".format(i) + "=0")
-    val sc = (0 to 24).map(i => "X-SOFTCLIP-_" + "%05d".format(i) + "=9000000")
+    val sc = (0 to 24).map(i => "X-SOFTCLIP-OR-DISCORDANT_" + "%05d".format(i) + "=9000000")
 
-    (filteredContigNames ++ um ++ dr ++ sc)
+    (filteredContigNames ++ um ++ sc)
       .flatMap(
         x => {
           val buf = scala.collection.mutable.ArrayBuffer.empty[String]
@@ -40,7 +39,7 @@ object AtgxTransformAlignments {
     val conf: Configuration = new Configuration
     val fs: FileSystem = FileSystem.get(conf)
 
-    dict.filterKeys(k => k.startsWith("X-DISCORDANT") || k.startsWith("X-SOFTCLIP"))
+    dict.filterKeys(k => k.startsWith("X-SOFTCLIP-OR-DISCORDANT"))
       .foreach(x => { // x => (String, Int)
         val pid = "%05d".format(x._2)
         val src = s"$path/part-r-$pid.snappy.parquet"
@@ -141,15 +140,12 @@ class AtgxTransformAlignments {
           } else {
             // primary assembly
             buf += ((ci + ">" + contigName + "_" + posBin + "=" + paddingStart, x))
-            // make duplication of the following cases: X-DISCORDANT, X-SOFTCLIP
+            // make duplication of the following cases: X-DISCORDANT or X-SOFTCLIP
             val paddedChromosomeIndex = "%05d".format(map(contigName))
-            if (x.getProperPair == false) {
-              // divided by chromosome, so the the index of bin always be 0
-              buf += ((ci + ">" + "X-DISCORDANT_" + paddedChromosomeIndex + "_0=" + paddingStart, x))
-            }
-            if (x.getCigar.contains("S")) {
+
+            if (x.getCigar.contains("S") || x.getProperPair == false) {
               val bin = x.getStart / binSizeMap(contigName)
-              buf += ((ci + ">" + "X-SOFTCLIP_" + paddedChromosomeIndex + "_" + bin + "=" + paddingStart, x))
+              buf += ((ci + ">" + "X-SOFTCLIP-OR-DISCORDANT_" + paddedChromosomeIndex + "_" + bin + "=" + paddingStart, x))
             }
           }
         }
