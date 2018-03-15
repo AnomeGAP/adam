@@ -18,7 +18,7 @@ object AtgxTransformAlignments {
     // the num_bins = 0 stands for only one bin, 9M will created 10 bins (0-9)
     val um = (0 to 24).map(i => "X-UNMAPPED_" + "%05d".format(i) + "=0")
     val dr = (0 to 24).map(i => "X-DISCORDANT_" + "%05d".format(i) + "=0")
-    val sc = (0 to 24).map(i => "X-SOFTCLIP_" + "%05d".format(i) + "=9000000")
+    val sc = (0 to 24).map(i => "X-SOFTCLIP-_" + "%05d".format(i) + "=9000000")
 
     (filteredContigNames ++ um ++ dr ++ sc)
       .flatMap(
