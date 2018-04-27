@@ -133,6 +133,8 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   var disableProcessingStep = false
   @Args4jOption(required = false, name = "-atgx_transform", usage = "Enable Atgenomix transformation.")
   var atgxTransform = false
+  @Args4jOption(required = false, name = "-disable_sv_dup", usage = "Disable duplication of sv calling reads, soft-clip or discordantly.")
+  var disableSVDup = false
 
   var command: String = null
 }
@@ -567,7 +569,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
     if (args.atgxTransform) {
       import AtgxTransformAlignments._
       val dict = mkPosBinIndices(sd)
-      val rdd = outputRdd.rdd.mapPartitions(new AtgxTransformAlignments().transform(sd, _))
+      val rdd = outputRdd.rdd.mapPartitions(new AtgxTransformAlignments().transform(sd, _, args.disableSVDup))
         .repartitionAndSortWithinPartitions(new NewPosBinPartitioner(dict))
         .map(_._2)
 

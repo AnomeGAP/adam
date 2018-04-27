@@ -114,7 +114,7 @@ class AtgxTransformAlignments {
       grch37.map(x => (x, ref(x))).sortBy(_._2).map(_._1).zipWithIndex).toMap
   }
 
-  def transform(sd: SequenceDictionary, iter: Iterator[AlignmentRecord]): Iterator[(String, AlignmentRecord)] = {
+  def transform(sd: SequenceDictionary, iter: Iterator[AlignmentRecord], DisableSVDup: Boolean): Iterator[(String, AlignmentRecord)] = {
     val partitionSize: Int = 1000000
     val binSizeMap = mkBinSizeMap()
     val map = mkReferenceIdMap(sd)
@@ -142,9 +142,11 @@ class AtgxTransformAlignments {
             buf += ((ci + ">" + contigName + "_" + posBin + "=" + paddingStart, x))
             // make duplication of the following cases: X-DISCORDANT OR X-SOFTCLIP
             val paddedChromosomeIndex = "%05d".format(map(contigName))
-            if (x.getCigar.contains("S") || x.getProperPair == false) {
-              val bin = x.getStart / binSizeMap(contigName)
-              buf += ((ci + ">" + "X-SOFTCLIP-OR-DISCORDANT_" + paddedChromosomeIndex + "_" + bin + "=" + paddingStart, x))
+            if (!DisableSVDup) {
+              if (x.getCigar.contains("S") || x.getProperPair == false) {
+                val bin = x.getStart / binSizeMap(contigName)
+                buf += ((ci + ">" + "X-SOFTCLIP-OR-DISCORDANT_" + paddedChromosomeIndex + "_" + bin + "=" + paddingStart, x))
+              }
             }
           }
         }
