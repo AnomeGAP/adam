@@ -7,12 +7,17 @@ import org.bdgenomics.adam.models.SequenceDictionary
 import org.bdgenomics.formats.avro.AlignmentRecord
 
 object AtgxTransformAlignments {
+  val stopwords = Seq("chrU_", "chrUn_", "chrEBV", "_decoy", "_random", "_hap", "NC_007605", "GL000")
+  
   def mkPosBinIndices(sd: SequenceDictionary, partitionSize: Int = 1000000): Map[String, Int] = {
-    val stopwords = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap", "NC_007605", "GL000")
     val filteredContigNames = sd.records.filterNot(x => stopwords.exists(x.name.contains))
       .sortBy(x => x.referenceIndex.get)
-      .map(x => if (x.name.startsWith("HLA-")) "HLA=0" else x.name + "=" + x.length)
-      .distinct // distinct: deduplication of 'HLA=0'
+      .map(x => {
+        if (x.name.startsWith("HLA-")) "HLA=0"
+        else if (x.name.endsWith("_alt")) "alt=0"
+        else x.name + "=" + x.length
+      })
+      .distinct // distinct: deduplication of 'HLA=0' and "alt=0"
 
     // duplicated reads => given-name_chromosome-index=num_bins
     // the num_bins = 0 stands for only one bin, 9M will created 10 bins (0-9)
@@ -39,7 +44,8 @@ object AtgxTransformAlignments {
     val conf: Configuration = new Configuration
     val fs: FileSystem = FileSystem.get(conf)
 
-    dict.filterKeys(k => k.startsWith("X-SOFTCLIP-OR-DISCORDANT"))
+    dict
+      .filterKeys(k => k.startsWith("X-SOFTCLIP-OR-DISCORDANT"))
       .foreach(x => { // x => (String, Int)
         val pid = "%05d".format(x._2)
         val src = s"$path/part-r-$pid.snappy.parquet"
@@ -101,8 +107,7 @@ class AtgxTransformAlignments {
       "16" -> 91000000, "17" -> 84000000, "18" -> 81000000, "19" -> 60000000,
       "20" -> 65000000, "21" -> 49000000, "22" -> 52000000, "X" -> 157000000,
       "Y" -> 60000000, "MT" -> 17000
-    )
-      .mapValues(v => v / fold)
+    ).mapValues(v => v / fold)
   }
 
   // sort the contigs by its ReferenceIndex in SequenceDirectory then zip them with index
@@ -119,41 +124,42 @@ class AtgxTransformAlignments {
     val binSizeMap = mkBinSizeMap()
     val map = mkReferenceIdMap(sd)
     val refIndexMap = sd.records.map(x => (x.name, "%05d".format(x.referenceIndex.get))).toMap
-    val words = Seq("chrU_", "chrUn_", "chrEBV", "_alt", "_decoy", "_random", "_hap", "GL000", "NC_007605", "hs37d5")
+    val words = Seq("chrU_", "chrUn_", "chrEBV", "_decoy", "_random", "_hap", "GL000", "NC_007605", "hs37d5")
     val r = new scala.util.Random // divide unmapped reads equally via random numbers
-
-    val buf = scala.collection.mutable.ArrayBuffer.empty[(String, AlignmentRecord)]
-    while (iter.hasNext) {
-      val x = iter.next()
+    
+    iter.flatMap[(String, AlignmentRecord)](x => {
       if (x.getReadMapped == false) { // unmapped reads
         val randomBinNumber = 0 + r.nextInt((24 - 0) + 1) // range: 0-24
-        buf += ((">X-UNMAPPED_" + "%05d".format(randomBinNumber) + "_0", x)) // e.g., X-UNMAPPED_00015_0
+        Array((">X-UNMAPPED_%05d_0".format(randomBinNumber), x)) // e.g., X-UNMAPPED_00015_0
       } else {
         val contigName = x.getContigName
         if (!words.exists(contigName.contains)) { // filter out the unused records
           val posBin = scala.math.floor(x.getStart / partitionSize).toInt
           val paddingStart = "%09d".format(x.getStart.toInt)
           val ci = refIndexMap(contigName)
-
-          if (contigName.startsWith("HLA")) {
-            buf += ((ci + ">" + contigName + "_" + "%05d".format(posBin) + "=" + paddingStart, x))
-          } else {
-            // primary assembly
-            buf += ((ci + ">" + contigName + "_" + posBin + "=" + paddingStart, x))
+      
+          if (contigName.startsWith("HLA") || contigName.endsWith("alt")) {
+            Array((ci + ">" + contigName + "_" + "%05d".format(posBin) + "=" + paddingStart, x))
+          }
+          else {
             // make duplication of the following cases: X-DISCORDANT OR X-SOFTCLIP
-            val paddedChromosomeIndex = "%05d".format(map(contigName))
             if (!DisableSVDup) {
               if (x.getCigar.contains("S") || x.getProperPair == false) {
                 val bin = x.getStart / binSizeMap(contigName)
-                buf += ((ci + ">" + "X-SOFTCLIP-OR-DISCORDANT_" + paddedChromosomeIndex + "_" + bin + "=" + paddingStart, x))
+                Array((ci + ">" + contigName + "_" + posBin + "=" + paddingStart, x),
+                  (ci + ">X-SOFTCLIP-OR-DISCORDANT_%05d".format(map(contigName)) + "_" + bin + "=" + paddingStart, x))
               }
+              else
+                Array((ci + ">" + contigName + "_" + posBin + "=" + paddingStart, x))
             }
+            else
+              Array((ci + ">" + contigName + "_" + posBin + "=" + paddingStart, x))
           }
         }
+        else
+          None
       }
-    }
-
-    buf.iterator
+    })
   }
 }
 
@@ -166,6 +172,9 @@ class NewPosBinPartitioner(dict: Map[String, Int]) extends Partitioner {
       val c = key.split("=")(0).split(">")(1)
       if (c.startsWith("HLA")) {
         dict("HLA_0")
+      }
+      else if (c.endsWith("alt")) {
+        dict("alt_0")
       }
       else {
         dict(c)
