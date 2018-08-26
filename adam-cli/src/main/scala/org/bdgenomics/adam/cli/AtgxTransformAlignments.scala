@@ -10,30 +10,31 @@ object AtgxTransformAlignments {
   val stopwords = Seq("chrU_", "chrUn_", "chrEBV", "_decoy", "_random", "_hap", "NC_007605", "GL000")
   
   def mkPosBinIndices(sd: SequenceDictionary, partitionSize: Int = 1000000): Map[String, Int] = {
-    val filteredContigNames = sd.records.filterNot(x => stopwords.exists(x.name.contains))
+    val filteredContigNames = sd.records
+      .filterNot(x => stopwords.exists(x.name.contains))
       .sortBy(x => x.referenceIndex.get)
       .map(x => {
-        if (x.name.startsWith("HLA-")) "HLA=0"
-        else if (x.name.endsWith("_alt")) "alt=0"
-        else x.name + "=" + x.length
+        if (x.name.startsWith("HLA-")) ("HLA", 0)
+        else if (x.name.endsWith("_alt")) ("alt", 0)
+        else (x.name, x.length)
       })
-      .distinct // distinct: deduplication of 'HLA=0' and "alt=0"
+      .distinct // remove deduplication of 'HLA=0' and "alt=0"
 
     // duplicated reads => given-name_chromosome-index=num_bins
     // the num_bins = 0 stands for only one bin, 9M will created 10 bins (0-9)
-    val um = (0 to 24).map(i => "X-UNMAPPED_" + "%05d".format(i) + "=0")
-    val sc = (0 to 24).map(i => "X-SOFTCLIP-OR-DISCORDANT_" + "%05d".format(i) + "=9000000")
+    val um = (0 to 24).map(i => ("X-UNMAPPED_%05d".format(i), 0))
+    val sc = (0 to 24).map(i => ("X-SOFTCLIP-OR-DISCORDANT_%05d".format(i), 9000000))
 
     (filteredContigNames ++ um ++ sc)
       .flatMap(
         x => {
           val buf = scala.collection.mutable.ArrayBuffer.empty[String]
-          val t = x.split("=")
-          for (numberOfPosBin <- 0 to scala.math.floor(t(1).toLong / partitionSize).toInt) {
-            buf += t(0) + "_" + numberOfPosBin
+          for (numberOfPosBin <- 0 to scala.math.floor(x._2 / partitionSize)) {
+            buf += x._1 + "_" + numberOfPosBin
           }
           buf.iterator
-        })
+        }
+      )
       .zipWithIndex
       .toMap
   }
@@ -173,7 +174,7 @@ class NewPosBinPartitioner(dict: Map[String, Int]) extends Partitioner {
       if (c.startsWith("HLA")) {
         dict("HLA_0")
       }
-      else if (c.endsWith("alt")) {
+      else if (c.contains("_alt_")) {
         dict("alt_0")
       }
       else {
