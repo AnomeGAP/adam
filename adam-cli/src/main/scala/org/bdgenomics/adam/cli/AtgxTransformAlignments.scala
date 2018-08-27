@@ -14,22 +14,22 @@ object AtgxTransformAlignments {
       .filterNot(x => stopwords.exists(x.name.contains))
       .sortBy(x => x.referenceIndex.get)
       .map(x => {
-        if (x.name.startsWith("HLA-")) ("HLA", 0)
-        else if (x.name.endsWith("_alt")) ("alt", 0)
-        else (x.name, x.length)
+        if (x.name.startsWith("HLA-")) ("HLA", 0.toInt)
+        else if (x.name.endsWith("_alt")) ("alt", 0.toInt)
+        else (x.name, x.length.toInt)
       })
       .distinct // remove deduplication of 'HLA=0' and "alt=0"
 
     // duplicated reads => given-name_chromosome-index=num_bins
     // the num_bins = 0 stands for only one bin, 9M will created 10 bins (0-9)
-    val um = (0 to 24).map(i => ("X-UNMAPPED_%05d".format(i), 0))
-    val sc = (0 to 24).map(i => ("X-SOFTCLIP-OR-DISCORDANT_%05d".format(i), 9000000))
+    val um = (0 to 24).map(i => ("X-UNMAPPED_%05d".format(i), 0.toInt))
+    val sc = (0 to 24).map(i => ("X-SOFTCLIP-OR-DISCORDANT_%05d".format(i), 9000000.toInt))
 
     (filteredContigNames ++ um ++ sc)
       .flatMap(
         x => {
           val buf = scala.collection.mutable.ArrayBuffer.empty[String]
-          for (numberOfPosBin <- 0 to scala.math.floor(x._2.asInstanceOf[Int] / partitionSize).toInt) {
+          for (numberOfPosBin <- 0 to scala.math.floor(x._2 / partitionSize).toInt) {
             buf += x._1 + "_" + numberOfPosBin
           }
           buf.iterator
