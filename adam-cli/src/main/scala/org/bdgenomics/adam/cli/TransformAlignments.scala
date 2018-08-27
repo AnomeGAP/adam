@@ -575,17 +575,19 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
     }
 
     if (args.tagReadName) {
+      val partitionSerialOffset = args.tagPartRange
       if (outputRdd.rdd.getNumPartitions > args.tagPartNum) {
         throw new Exception("Paired-end input is limited with partition number " + args.tagPartNum)
       }
-      AlignmentRecordRDD(outputRdd.rdd.mapPartitions(new AtgxReadsIDTagger().tag(_, args.tagPartRange)),
+      AlignmentRecordRDD(outputRdd.rdd.mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset)),
         outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
         .save(args, isSorted = args.sortReads || args.sortLexicographically)
     } else if (args.atgxTransform) {
       import AtgxTransformAlignments._
+      val disableSVDup = args.disableSVDup
       val dict = mkPosBinIndices(sd)
       val rdd = outputRdd.rdd
-        .mapPartitions(new AtgxTransformAlignments().transform(sd, _, args.disableSVDup))
+        .mapPartitions(new AtgxTransformAlignments().transform(sd, _, disableSVDup))
         .repartitionAndSortWithinPartitions(new NewPosBinPartitioner(dict))
         .map(_._2)
 
