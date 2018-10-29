@@ -21,20 +21,20 @@ import htsjdk.samtools.ValidationStringency
 import java.time.Instant
 
 import org.apache.parquet.filter2.dsl.Dsl._
-import org.apache.spark.{SparkContext, TaskContext}
+import org.apache.spark.{ SparkContext, TaskContext }
 import org.apache.spark.storage.StorageLevel
 import org.bdgenomics.adam.algorithms.consensus._
 import org.bdgenomics.adam.instrumentation.Timers._
-import org.bdgenomics.adam.models.{ReferenceRegion, SnpTable}
-import org.bdgenomics.adam.projections.{AlignmentRecordField, Filter}
+import org.bdgenomics.adam.models.{ ReferenceRegion, SnpTable }
+import org.bdgenomics.adam.projections.{ AlignmentRecordField, Filter }
 import org.bdgenomics.adam.rdd.ADAMContext._
 import org.bdgenomics.adam.rdd.ADAMSaveAnyArgs
-import org.bdgenomics.adam.rdd.read.{AlignmentRecordRDD, QualityScoreBin}
+import org.bdgenomics.adam.rdd.read.{ AlignmentRecordRDD, QualityScoreBin }
 import org.bdgenomics.adam.rich.RichVariant
-import org.bdgenomics.formats.avro.{AlignmentRecord, ProcessingStep}
+import org.bdgenomics.formats.avro.{ AlignmentRecord, ProcessingStep }
 import org.bdgenomics.utils.cli._
 import org.bdgenomics.utils.misc.Logging
-import org.kohsuke.args4j.{Argument, Option => Args4jOption}
+import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -144,6 +144,11 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   var tagPartRange = 268435456
   @Args4jOption(required = false, name = "-tag_partition_num", usage = "maximum number of partitions supported by -tag_reads option")
   var tagPartNum = 4096
+  @Args4jOption(required = false, name = "-rand_assign_n", usage = "randomly assign N to one of the nucleotides A, C, G, and T")
+  var randAssignN = true
+  @Args4jOption(required = false, name = "-max_N_count", usage = "upper limit for uncalled base count")
+  var maxNCount: Int = 10
+
   var command: String = null
 }
 
@@ -576,12 +581,23 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
 
     if (args.tagReadName) {
       val partitionSerialOffset = args.tagPartRange
+      val maxNCount = args.maxNCount
       if (outputRdd.rdd.getNumPartitions > args.tagPartNum) {
         throw new Exception("Paired-end input is limited with partition number " + args.tagPartNum)
       }
-      AlignmentRecordRDD(outputRdd.rdd.mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset)),
-        outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
-        .save(args, isSorted = args.sortReads || args.sortLexicographically)
+
+      val atgxRdd = {
+        if (args.randAssignN)
+          outputRdd.rdd
+            .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
+            .mapPartitions(new AtgxRandNucAssigner().assign(_, maxNCount))
+        else
+          outputRdd.rdd
+            .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
+      }
+
+      AlignmentRecordRDD(atgxRdd, outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
+          .save(args, isSorted = args.sortReads || args.sortLexicographically)
     } else if (args.atgxTransform) {
       import AtgxTransformAlignments._
       val disableSVDup = args.disableSVDup
