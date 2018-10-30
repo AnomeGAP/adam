@@ -1,14 +1,14 @@
 /**
-  * Copyright (C) 2015, Atgenomix Incorporated. All Rights Reserved.
-  * This program is an unpublished copyrighted work which is proprietary to
-  * Atgenomix Incorporated and contains confidential information that is not to
-  * be reproduced or disclosed to any other person or entity without prior
-  * written consent from Atgenomix, Inc. in each and every instance.
-  * Unauthorized reproduction of this program as well as unauthorized
-  * preparation of derivative works based upon the program or distribution of
-  * copies by sale, rental, lease or lending are violations of federal copyright
-  * laws and state trade secret laws, punishable by civil and criminal penalties.
-  */
+ * Copyright (C) 2015, Atgenomix Incorporated. All Rights Reserved.
+ * This program is an unpublished copyrighted work which is proprietary to
+ * Atgenomix Incorporated and contains confidential information that is not to
+ * be reproduced or disclosed to any other person or entity without prior
+ * written consent from Atgenomix, Inc. in each and every instance.
+ * Unauthorized reproduction of this program as well as unauthorized
+ * preparation of derivative works based upon the program or distribution of
+ * copies by sale, rental, lease or lending are violations of federal copyright
+ * laws and state trade secret laws, punishable by civil and criminal penalties.
+ */
 
 package org.bdgenomics.adam.util
 
@@ -17,14 +17,14 @@ import scala.collection.mutable.ArrayBuffer
 
 object ArrayByteUtils {
   /**
-    * Encode string to 2-bit char array with starting index
-    *
-    * @param s INPUT the input string
-    * @param start INPUT the start position of s
-    * @param i INPUT the starting index of s
-    * @param b OUTPUT the encoded bytearray
-    * @return
-    */
+   * Encode string to 2-bit char array with starting index
+   *
+   * @param s INPUT the input string
+   * @param start INPUT the start position of s
+   * @param i INPUT the starting index of s
+   * @param b OUTPUT the encoded bytearray
+   * @return
+   */
   def encode5plus(s: String, start: Short, i: Int = 0, read_byte_length: Int, b: Array[Byte]): Unit = {
     val offset = read_byte_length * i
     var cnt = (s.length - start) / 4
@@ -52,7 +52,7 @@ object ArrayByteUtils {
       bound = bound + 1
       z = z + 1
     }
-    b(offset+ x) = tail.toByte
+    b(offset + x) = tail.toByte
 
     //add prefix
     cnt = start / 4
@@ -83,17 +83,17 @@ object ArrayByteUtils {
   }
 
   /**
-    * Encode string to 2-bit char array with starting index
-    *
-    * @param s the input string
-    * @param i the starting index of s
-    * @return (encoded byte array, length with $ terminating char)
-    */
+   * Encode string to 2-bit char array with starting index
+   *
+   * @param s the input string
+   * @param i the starting index of s
+   * @return (encoded byte array, length with $ terminating char)
+   */
   def encode2bit(s: String, i: Int = 0): (Array[Byte], Short) = {
     val slen = s.length - i
     val alen = slen / 4 + 1
     val array = new Array[Byte](alen)
-    
+
     var x = 0
     while (x < alen - 1) {
       val j = x * 4 + i
@@ -101,7 +101,7 @@ object ArrayByteUtils {
       array(x) = b.toByte
       x = x + 1
     }
-    
+
     var bound = x * 4 + i
     var tail = 0
     var z = 0
@@ -124,7 +124,7 @@ object ArrayByteUtils {
     val slen = s.length - i
     val alen = slen / 4 + 1
     val array = new Array[Byte](alen)
-    
+
     var x = 0
     while (x < alen - 1) {
       val j = x * 4 + i
@@ -132,7 +132,7 @@ object ArrayByteUtils {
       array(x) = b.toByte
       x = x + 1
     }
-    
+
     var bound = x * 4 + i
     var tail = 0
     var z = 0
@@ -162,19 +162,19 @@ object ArrayByteUtils {
         if ((i + 2) <= s.length)
           (char2ToByte(s(i)) << 4 | char2ToByte(s(i + 1))).toByte
         else
-        // last chunk in odd case, the left part always has value and end with "0000" naturally, i.e., `$`
+          // last chunk in odd case, the left part always has value and end with "0000" naturally, i.e., `$`
           (char2ToByte(s(i)) << 4).toByte
     }
     array
   }
 
   /**
-    * Encode string to 4-bit char array with starting index
-    *
-    * @param s the input string
-    * @param i the starting index of s
-    * @return
-    */
+   * Encode string to 4-bit char array with starting index
+   *
+   * @param s the input string
+   * @param i the starting index of s
+   * @return
+   */
   def encode4bit(s: String, i: Int): Array[Byte] = {
     val array = new Array[Byte](((s.length - i) / 2) + 1)
     for (j <- i until s.length by 2) {
@@ -182,7 +182,7 @@ object ArrayByteUtils {
         if ((j + 2) <= s.length)
           (char2ToByte(s(j)) << 4 | char2ToByte(s(j + 1))).toByte
         else
-        // last chunk in odd case, the left part always has value and end with "0000" naturally, i.e., `$`
+          // last chunk in odd case, the left part always has value and end with "0000" naturally, i.e., `$`
           (char2ToByte(s(j)) << 4).toByte
     }
     array
@@ -191,23 +191,23 @@ object ArrayByteUtils {
   // The goal is to compress to chars into a byte, i.e., each char takes 4-bits space.
   // Therefore, we assign the corresponding values for `A C G T N $`.
   // e.g., A => 0001, AA => 0001 0001, TA => 0100 0001
-  private def char2ToByte(c: Char@switch): Byte = c match {
+  private def char2ToByte(c: Char @switch): Byte = c match {
     case '$' => 0
     case 'A' => 1
     case 'C' => 2
     case 'G' => 3
     case 'N' => 4
     case 'T' => 5
-    case _ => throw new IllegalArgumentException
+    case _   => throw new IllegalArgumentException
   }
 
   // 2-bit encoding; 1 byte = 8 bits = 4 chars (1 char = 2 bits [A, C, G, T])
-  private[this] def char4ToByte(c: Char@switch): Byte = c match {
+  private[this] def char4ToByte(c: Char @switch): Byte = c match {
     case 'A' => 0
     case 'C' => 1
     case 'G' => 2
     case 'T' => 3
-    case _ => throw new IllegalArgumentException
+    case _   => throw new IllegalArgumentException
   }
 
   // since we encapsulate two chars into a byte that we need to identify the `$` in the last element
@@ -234,7 +234,7 @@ object ArrayByteUtils {
     }
     i
   }
-  
+
   def hash2bit(arr: Array[Byte]): Long = {
     var h: Long = 1125899906842597L // mixingPrime
     for (a <- arr) {
@@ -412,7 +412,7 @@ object ArrayByteUtils {
     buf.toString
   }
 
-  private[this] def int2ToChar(b: Int@switch): Char = b match {
+  private[this] def int2ToChar(b: Int @switch): Char = b match {
     case 0 => '$'
     case 1 => 'A'
     case 2 => 'C'
@@ -422,7 +422,7 @@ object ArrayByteUtils {
     case _ => throw new IllegalArgumentException(s"Unknown option: '$b'")
   }
 
-  private[this] def int4ToChar(i: Int@switch): Char = i match {
+  private[this] def int4ToChar(i: Int @switch): Char = i match {
     case 0 => 'A'
     case 1 => 'C'
     case 2 => 'G'
