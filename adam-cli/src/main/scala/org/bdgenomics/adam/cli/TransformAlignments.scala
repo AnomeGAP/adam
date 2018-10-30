@@ -593,6 +593,12 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         throw new Exception("Paired-end input is limited with partition number " + args.tagPartNum)
       }
 
+      val trimmer = if (args.tenX) {
+        Some(new AtgxBarcodeTrimmer(sc, args.barcodeLen, args.nMerLen, args.barcodeWhitelist))
+      } else {
+        None
+      }
+
       val atgxRdd = {
         if (args.randAssignN)
           outputRdd.rdd
@@ -601,7 +607,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         else if (args.tenX) {
           outputRdd.rdd
             .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
-            .mapPartitions(new AtgxBarcodeTrimmer(sc, args.barcodeLen, args.nMerLen, args.barcodeWhitelist).trim(_, partitionSerialOffset))
+            .mapPartitions(trimmer.get.trim(_, partitionSerialOffset))
         } else
           outputRdd.rdd
             .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
@@ -609,6 +615,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
 
       AlignmentRecordRDD(atgxRdd, outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
         .save(args, isSorted = args.sortReads || args.sortLexicographically)
+      trimmer.map(_.statistics())
     } else if (args.atgxTransform) {
       import AtgxTransformAlignments._
       val disableSVDup = args.disableSVDup

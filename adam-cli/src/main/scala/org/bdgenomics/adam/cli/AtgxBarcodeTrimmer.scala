@@ -15,9 +15,22 @@ object AtgxBarcodeTrimmer {
 class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, barcodeWhitelist: String) {
   val source = Source.fromFile(barcodeWhitelist)
   val whitelist = try { source.getLines.toList.map(seqToHash) } finally source.close()
+  val matchCnt = sc.longAccumulator("match_counter")
+  val mismatchOneCnt = sc.longAccumulator("mismatch1_counter")
+  val ambiguousCnt = sc.longAccumulator("ambiguous_counter")
+  val unknownCnt = sc.longAccumulator("unknown_counter")
 
   def trim(iter: Iterator[AlignmentRecord], partitionSerialOffset: Int = 268435456): Iterator[AlignmentRecord] = {
     iter.map(trimmer)
+  }
+
+  def statistics(): Unit = {
+    val total = matchCnt.value + mismatchOneCnt.value + ambiguousCnt.value + unknownCnt.value
+
+    println(s"10x barcode match: ${matchCnt.value.toDouble / total * 100}")
+    println(s"10x barcode mismatch1: ${mismatchOneCnt.value.toDouble / total * 100}")
+    println(s"10x barcode ambiguous: ${ambiguousCnt.value.toDouble / total * 100}")
+    println(s"10x barcode unknown: ${unknownCnt.value.toDouble / total * 100}")
   }
 
   private def trimmer(record: AlignmentRecord): AlignmentRecord = {
@@ -34,17 +47,19 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, barcod
   private def matchWhitelist(barcode: String): Int = {
     val barcodeHash = seqToHash(barcode)
     if (whitelist.contains(barcodeHash)) {
+      matchCnt.add(1)
       AtgxBarcodeTrimmer.MATCH
     } else {
       val hamming = getHammingOne(barcode)
       val result = hamming.map(whitelist.contains).map(i => if (i) 1 else 0).sum
       if (result == 0) {
+        unknownCnt.add(1)
         AtgxBarcodeTrimmer.UNKNOWN
-      }
-      else if (result == 1) {
+      } else if (result == 1) {
+        mismatchOneCnt.add(1)
         AtgxBarcodeTrimmer.MISMATCH1
-      }
-      else {
+      } else {
+        mismatchOneCnt.add(1)
         AtgxBarcodeTrimmer.AMBIGUOUS
       }
     }
