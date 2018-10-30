@@ -2,14 +2,16 @@ package org.bdgenomics.adam.cli
 
 import org.apache.spark.SparkContext
 import org.bdgenomics.formats.avro.AlignmentRecord
+import org.bdgenomics.adam.util.ArrayByteUtils._
 
 import scala.io.Source
+import scala.math.BigInt
 
 object AtgxBarcodeTrimmer {
-  final val MATCH = 0
-  final val MISMATCH1 = 1
-  final val AMBIGUOUS = 2
-  final val UNKNOWN = 3
+  final val MATCH = 0x0000000FFFFFFFFFL
+  final val MISMATCH1 = 0x0000001FFFFFFFFFL
+  final val AMBIGUOUS = 0x0000010FFFFFFFFFL
+  final val UNKNOWN = 0x0000011FFFFFFFFFL
 }
 
 class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, barcodeWhitelist: String) {
@@ -37,14 +39,14 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, barcod
     val seq = record.getSequence
     val barcode = seq.substring(0, barcodeLen)
     val matchResult = matchWhitelist(barcode)
+    val encodedBarcode = BigInt(encode(barcode)._1).toLong & matchResult
 
     record.setSequence(seq.substring(barcodeLen + nMerLen))
-    // TODO: 2bitEncode for barcode
-    record.setReadName(record.getReadName + " " + barcode + " " + matchResult)
+    record.setReadName(record.getReadName + " " + encodedBarcode)
     record
   }
 
-  private def matchWhitelist(barcode: String): Int = {
+  private def matchWhitelist(barcode: String): Long = {
     val barcodeHash = seqToHash(barcode)
     if (whitelist.contains(barcodeHash)) {
       matchCnt.add(1)
