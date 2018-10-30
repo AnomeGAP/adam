@@ -38,8 +38,8 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, barcod
   private def trimmer(record: AlignmentRecord): AlignmentRecord = {
     val seq = record.getSequence
     val barcode = seq.substring(0, barcodeLen)
-    val matchResult = matchWhitelist(barcode)
-    val encodedBarcode = BigInt(encode(matchResult._1)._1).toLong & matchResult._2
+    val (code, result) = matchWhitelist(barcode)
+    val encodedBarcode = BigInt(encode(code)._1).toLong & result
 
     record.setSequence(seq.substring(barcodeLen + nMerLen))
     record.setReadName(record.getReadName + " " + encodedBarcode)
@@ -59,8 +59,8 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, barcod
         unknownCnt.add(1)
         barcode -> AtgxBarcodeTrimmer.UNKNOWN
       } else if (result == 1) {
-        val idx = hammingTest.zip(hammingOne).find { case (r, _) => r == 1 }.get._2
-        val correctedBarcode = whitelist(idx)
+        val key = hammingTest.zip(hammingOne).find { case (r, _) => r == 1 }.get._2
+        val correctedBarcode = whitelist(key)
         mismatchOneCnt.add(1)
         correctedBarcode -> AtgxBarcodeTrimmer.MISMATCH1
       } else {
