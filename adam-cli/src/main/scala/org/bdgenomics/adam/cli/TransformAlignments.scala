@@ -148,7 +148,14 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   var randAssignN = true
   @Args4jOption(required = false, name = "-max_N_count", usage = "upper limit for uncalled base count")
   var maxNCount: Int = 10
-
+  @Args4jOption(required = false, name = "-10_x", usage = "transform 10x format")
+  var tenX = true
+  @Args4jOption(required = false, name = "-barcode_len", usage = "barcode length")
+  var barcodeLen = 16
+  @Args4jOption(required = false, name = "-n_mer_len", usage = "N-mer length")
+  var nMerLen = 7
+  @Args4jOption(required = false, name = "-barcode_whitelist", usage = "barcode whitelist")
+  var barcodeWhitelist = ""
   var command: String = null
 }
 
@@ -591,13 +598,17 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           outputRdd.rdd
             .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
             .mapPartitions(new AtgxRandNucAssigner().assign(_, maxNCount))
-        else
+        else if (args.tenX) {
+          outputRdd.rdd
+            .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
+            .mapPartitions(new AtgxBarcodeTrimmer(sc, args.barcodeLen, args.nMerLen, args.barcodeWhitelist).trim(_, partitionSerialOffset))
+        } else
           outputRdd.rdd
             .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
       }
 
       AlignmentRecordRDD(atgxRdd, outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
-          .save(args, isSorted = args.sortReads || args.sortLexicographically)
+        .save(args, isSorted = args.sortReads || args.sortLexicographically)
     } else if (args.atgxTransform) {
       import AtgxTransformAlignments._
       val disableSVDup = args.disableSVDup
