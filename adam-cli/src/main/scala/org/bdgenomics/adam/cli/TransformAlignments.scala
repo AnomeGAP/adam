@@ -141,9 +141,9 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   @Args4jOption(required = false, name = "-tag_reads", usage = "tag read name with serial numbers for coding pair-end information")
   var tagReadName = false
   @Args4jOption(required = false, name = "-tag_partition_range", usage = "tag number for a partition")
-  var tagPartRange = 268435456
+  var tagPartRange = 2097152
   @Args4jOption(required = false, name = "-tag_partition_num", usage = "maximum number of partitions supported by -tag_reads option")
-  var tagPartNum = 4096
+  var tagPartNum = 524288
   @Args4jOption(required = false, name = "-rand_assign_n", usage = "randomly assign N to one of the nucleotides A, C, G, and T")
   var randAssignN = true
   @Args4jOption(required = false, name = "-max_N_count", usage = "upper limit for uncalled base count")

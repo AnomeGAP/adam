@@ -10,10 +10,15 @@ object AtgxReadsIDTagger {}
 class AtgxReadsIDTagger {
   /**
     * we will use 40 bit of a long to do reads id encoding (~1 trillions) in StringGraph
-    * we reserve 256M serial numbers for reads ID for each partition =>
-    * the overall partition number upper bound is 4096
+    * we reserve 2M serial numbers for reads ID for each partition => the overall partition number upper bound is 524288
+    *
+    * This 2M magic number comes from the read count of each chunk.fastq.snappy, i.e. the input.fq for each partition.
+    * In Atgenomix, we set HDFS block size of 256MB.  To fit this 256MB block for each chunk.fastq.snappy file,
+    *
+    * we have the read1.fq.gz and read2.fq.gz chopped into 600MB plaintext length, which includes ~1.9M reads for read
+    * length of 151.
     */
-  def tag(iter: Iterator[AlignmentRecord], partitionSerialOffset: Int = 268435456): Iterator[AlignmentRecord] = {
+  def tag(iter: Iterator[AlignmentRecord], partitionSerialOffset: Int = 2097152): Iterator[AlignmentRecord] = {
     val content = iter.toArray
     val pairBound = content.length / 2
     val itr = content.iterator
