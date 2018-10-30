@@ -16,7 +16,7 @@ object AtgxBarcodeTrimmer {
 
 class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, barcodeWhitelist: String) {
   val source = Source.fromFile(barcodeWhitelist)
-  val whitelist = try { source.getLines.toList.map(seqToHash) } finally source.close()
+  val whitelist = try { source.getLines.toList.map(i => seqToHash(i) -> i).toMap } finally source.close()
   val matchCnt = sc.longAccumulator("match_counter")
   val mismatchOneCnt = sc.longAccumulator("mismatch1_counter")
   val ambiguousCnt = sc.longAccumulator("ambiguous_counter")
@@ -39,30 +39,33 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, barcod
     val seq = record.getSequence
     val barcode = seq.substring(0, barcodeLen)
     val matchResult = matchWhitelist(barcode)
-    val encodedBarcode = BigInt(encode(barcode)._1).toLong & matchResult
+    val encodedBarcode = BigInt(encode(matchResult._1)._1).toLong & matchResult._2
 
     record.setSequence(seq.substring(barcodeLen + nMerLen))
     record.setReadName(record.getReadName + " " + encodedBarcode)
     record
   }
 
-  private def matchWhitelist(barcode: String): Long = {
-    val barcodeHash = seqToHash(barcode)
-    if (whitelist.contains(barcodeHash)) {
+  private def matchWhitelist(barcode: String): (String, Long) = {
+    if (whitelist.contains(seqToHash(barcode))) {
       matchCnt.add(1)
-      AtgxBarcodeTrimmer.MATCH
+      barcode -> AtgxBarcodeTrimmer.MATCH
     } else {
-      val hamming = getHammingOne(barcode)
-      val result = hamming.map(whitelist.contains).map(i => if (i) 1 else 0).sum
+      val hammingOne = getHammingOne(barcode)
+      val hammingTest = hammingOne.map(whitelist.contains).map(i => if (i) 1 else 0)
+      val result = hammingTest.sum
+
       if (result == 0) {
         unknownCnt.add(1)
-        AtgxBarcodeTrimmer.UNKNOWN
+        barcode -> AtgxBarcodeTrimmer.UNKNOWN
       } else if (result == 1) {
+        val idx = hammingTest.zip(hammingOne).find { case (r, _) => r == 1 }.get._2
+        val correctedBarcode = whitelist(idx)
         mismatchOneCnt.add(1)
-        AtgxBarcodeTrimmer.MISMATCH1
+        correctedBarcode -> AtgxBarcodeTrimmer.MISMATCH1
       } else {
         mismatchOneCnt.add(1)
-        AtgxBarcodeTrimmer.AMBIGUOUS
+        barcode -> AtgxBarcodeTrimmer.AMBIGUOUS
       }
     }
   }
