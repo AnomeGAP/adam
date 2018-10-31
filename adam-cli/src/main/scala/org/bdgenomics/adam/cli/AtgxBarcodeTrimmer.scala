@@ -4,7 +4,6 @@ import org.apache.spark.SparkContext
 import org.bdgenomics.formats.avro.AlignmentRecord
 import org.bdgenomics.adam.util.ArrayByteUtils._
 
-import scala.io.Source
 import scala.math.BigInt
 
 object AtgxBarcodeTrimmer {
@@ -14,9 +13,8 @@ object AtgxBarcodeTrimmer {
   final val UNKNOWN = 0x0000011FFFFFFFFFL
 }
 
-class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, barcodeWhitelist: String) {
-  val source = Source.fromFile(barcodeWhitelist)
-  val whitelist = try { source.getLines.toList.map(i => seqToHash(i) -> i).toMap } finally source.close()
+class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitelistPath: String) extends Serializable {
+  val whitelist = sc.broadcast(sc.textFile(whitelistPath).map(i => seqToHash(i) -> i).collect().toMap)
   val matchCnt = sc.longAccumulator("match_counter")
   val mismatchOneCnt = sc.longAccumulator("mismatch1_counter")
   val ambiguousCnt = sc.longAccumulator("ambiguous_counter")
@@ -47,12 +45,13 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, barcod
   }
 
   private def matchWhitelist(barcode: String): (String, Long) = {
-    if (whitelist.contains(seqToHash(barcode))) {
+    val wl = whitelist.value
+    if (wl.contains(seqToHash(barcode))) {
       matchCnt.add(1)
       barcode -> AtgxBarcodeTrimmer.MATCH
     } else {
       val hammingOne = getHammingOne(barcode)
-      val hammingTest = hammingOne.map(whitelist.contains).map(i => if (i) 1 else 0)
+      val hammingTest = hammingOne.map(wl.contains).map(i => if (i) 1 else 0)
       val result = hammingTest.sum
 
       if (result == 0) {
@@ -60,7 +59,7 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, barcod
         barcode -> AtgxBarcodeTrimmer.UNKNOWN
       } else if (result == 1) {
         val key = hammingTest.zip(hammingOne).find { case (r, _) => r == 1 }.get._2
-        val correctedBarcode = whitelist(key)
+        val correctedBarcode = wl(key)
         mismatchOneCnt.add(1)
         correctedBarcode -> AtgxBarcodeTrimmer.MISMATCH1
       } else {
