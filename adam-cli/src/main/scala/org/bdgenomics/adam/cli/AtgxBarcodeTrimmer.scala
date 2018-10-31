@@ -90,7 +90,8 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
   }
 
   private def seqToHash(seq: String): Long = {
+    // N defaults to A
     val encoding = Map('a' -> 0, 'c' -> 1, 'g' -> 2, 't' -> 3, 'A' -> 0, 'C' -> 1, 'G' -> 2, 'T' -> 3)
-    seq.map(i => encoding.getOrElse(i, 0) * Math.pow(4, i)).sum.toLong
+    seq.zipWithIndex.map { case (s, idx) => encoding.getOrElse(s, 0) * Math.pow(4, idx) }.sum.toLong
   }
 }
