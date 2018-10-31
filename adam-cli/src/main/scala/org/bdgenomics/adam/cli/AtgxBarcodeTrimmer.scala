@@ -27,10 +27,10 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
   def statistics(): Unit = {
     val total = matchCnt.value + mismatchOneCnt.value + ambiguousCnt.value + unknownCnt.value
 
-    println(s"10x barcode match: ${matchCnt.value.toDouble / total * 100}")
-    println(s"10x barcode mismatch1: ${mismatchOneCnt.value.toDouble / total * 100}")
-    println(s"10x barcode ambiguous: ${ambiguousCnt.value.toDouble / total * 100}")
-    println(s"10x barcode unknown: ${unknownCnt.value.toDouble / total * 100}")
+    println(s"10x barcode match: ${matchCnt.value} ${matchCnt.value.toDouble / total * 100}")
+    println(s"10x barcode mismatch1: ${mismatchOneCnt.value} ${mismatchOneCnt.value.toDouble / total * 100}")
+    println(s"10x barcode ambiguous: ${ambiguousCnt.value} ${ambiguousCnt.value.toDouble / total * 100}")
+    println(s"10x barcode unknown: ${unknownCnt.value} ${unknownCnt.value.toDouble / total * 100}")
   }
 
   private def trimmer(record: AlignmentRecord): AlignmentRecord = {
