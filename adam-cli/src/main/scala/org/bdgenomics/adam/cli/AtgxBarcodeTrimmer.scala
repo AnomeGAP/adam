@@ -14,7 +14,7 @@ object AtgxBarcodeTrimmer {
 }
 
 class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitelistPath: String) extends Serializable {
-  val whitelist = sc.broadcast(sc.textFile(whitelistPath).map(i => seqToHash(i) -> i).collect().toMap)
+  val whitelist = sc.broadcast(sc.textFile(whitelistPath).map(i => seqToHash(i) -> BigInt(encode(i)._1).toInt).collect().toMap)
   val matchCnt = sc.longAccumulator("match_counter")
   val mismatchOneCnt = sc.longAccumulator("mismatch1_counter")
   val ambiguousCnt = sc.longAccumulator("ambiguous_counter")
@@ -38,18 +38,19 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
     val seq = record.getSequence
     val barcode = seq.substring(0, barcodeLen)
     val (code, result) = matchWhitelist(barcode)
-    val encodedBarcode = BigInt(encode(code)._1).toInt & EXTEND & result
+    val encodedBarcode = code & EXTEND & result
 
     record.setSequence(seq.substring(barcodeLen + nMerLen))
     record.setReadName(record.getReadName + " " + encodedBarcode)
     record
   }
 
-  private def matchWhitelist(barcode: String): (String, Long) = {
+  private def matchWhitelist(barcode: String): (Int, Long) = {
     val wl = whitelist.value
-    if (wl.contains(seqToHash(barcode))) {
+    val key = seqToHash(barcode)
+    if (wl.contains(key)) {
       matchCnt.add(1)
-      barcode -> AtgxBarcodeTrimmer.MATCH
+      wl(key) -> AtgxBarcodeTrimmer.MATCH
     } else {
       val hammingOne = getHammingOne(barcode)
       val hammingTest = hammingOne.map(wl.contains).map(i => if (i) 1 else 0)
@@ -57,7 +58,7 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
 
       if (result == 0) {
         unknownCnt.add(1)
-        barcode -> AtgxBarcodeTrimmer.UNKNOWN
+        BigInt(encode(barcode)._1).toInt -> AtgxBarcodeTrimmer.UNKNOWN
       } else if (result == 1) {
         val key = hammingTest.zip(hammingOne).find { case (r, _) => r == 1 }.get._2
         val correctedBarcode = wl(key)
@@ -65,7 +66,7 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
         correctedBarcode -> AtgxBarcodeTrimmer.MISMATCH1
       } else {
         mismatchOneCnt.add(1)
-        barcode -> AtgxBarcodeTrimmer.AMBIGUOUS
+        BigInt(encode(barcode)._1).toInt -> AtgxBarcodeTrimmer.AMBIGUOUS
       }
     }
   }
