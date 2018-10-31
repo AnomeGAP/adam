@@ -148,8 +148,8 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   var randAssignN = true
   @Args4jOption(required = false, name = "-max_N_count", usage = "upper limit for uncalled base count")
   var maxNCount: Int = 10
-  @Args4jOption(required = false, name = "-10_x", usage = "transform 10x format")
-  var tenX = true
+  @Args4jOption(required = false, name = "-ten_x", usage = "transform 10x format")
+  var tenX = false
   @Args4jOption(required = false, name = "-barcode_len", usage = "barcode length")
   var barcodeLen = 16
   @Args4jOption(required = false, name = "-n_mer_len", usage = "N-mer length")
@@ -600,14 +600,14 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
       }
 
       val atgxRdd = {
-        if (args.randAssignN)
-          outputRdd.rdd
+        if (args.randAssignN) {
+          val taggedRdd = outputRdd.rdd
             .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
             .mapPartitions(new AtgxRandNucAssigner().assign(_, maxNCount))
-        else if (args.tenX) {
-          outputRdd.rdd
-            .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
-            .mapPartitions(trimmer.get.trim(_, partitionSerialOffset))
+          if (args.tenX)
+            taggedRdd.mapPartitions(trimmer.get.trim(_, partitionSerialOffset))
+          else
+            taggedRdd
         } else
           outputRdd.rdd
             .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
