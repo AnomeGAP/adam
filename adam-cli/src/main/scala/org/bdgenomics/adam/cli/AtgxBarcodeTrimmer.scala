@@ -34,10 +34,11 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
   }
 
   private def trimmer(record: AlignmentRecord): AlignmentRecord = {
+    val EXTEND = 0xFFFFFFFFFFFFFFFFL
     val seq = record.getSequence
     val barcode = seq.substring(0, barcodeLen)
     val (code, result) = matchWhitelist(barcode)
-    val encodedBarcode = BigInt(encode(code)._1).toLong & result
+    val encodedBarcode = BigInt(encode(code)._1).toInt & EXTEND & result
 
     record.setSequence(seq.substring(barcodeLen + nMerLen))
     record.setReadName(record.getReadName + " " + encodedBarcode)
