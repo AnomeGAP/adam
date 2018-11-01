@@ -62,17 +62,21 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
       val hammingTest = hammingOne.map(wl.contains).map(i => if (i) 1 else 0)
       val result = hammingTest.sum
 
-      if (result == 0) {
-        unknownCnt.add(1)
-        BigInt(encode(barcode)._1).toInt -> AtgxBarcodeTrimmer.UNKNOWN
-      } else if (result == 1) {
-        val key = hammingTest.zip(hammingOne).find { case (r, _) => r == 1 }.get._2
-        val correctedBarcode = wl(key)
-        mismatchOneCnt.add(1)
-        correctedBarcode -> AtgxBarcodeTrimmer.MISMATCH1
-      } else {
-        mismatchOneCnt.add(1)
-        BigInt(encode(barcode)._1).toInt -> AtgxBarcodeTrimmer.AMBIGUOUS
+      result match {
+        case 0 => {
+          unknownCnt.add(1)
+          BigInt(encode(barcode)._1).toInt -> AtgxBarcodeTrimmer.UNKNOWN
+        }
+        case 1 => {
+          val key = hammingTest.zip(hammingOne).find { case (r, _) => r == 1 }.get._2
+          val correctedBarcode = wl(key)
+          mismatchOneCnt.add(1)
+          correctedBarcode -> AtgxBarcodeTrimmer.MISMATCH1
+        }
+        case _ => {
+          ambiguousCnt.add(1)
+          BigInt(encode(barcode)._1).toInt -> AtgxBarcodeTrimmer.AMBIGUOUS
+        }
       }
     }
   }
