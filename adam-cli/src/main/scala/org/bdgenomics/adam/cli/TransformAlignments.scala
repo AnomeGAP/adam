@@ -609,6 +609,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
             filteredRdd.mapPartitions(trimmer.get.trim)
           else
             filteredRdd
+          trimmedRdd.mapPartitions(new AtgxRandNucAssigner().assign(_))
         } else
           outputRdd.rdd
             .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
