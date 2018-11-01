@@ -147,7 +147,7 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   @Args4jOption(required = false, name = "-rand_assign_n", usage = "randomly assign N to one of the nucleotides A, C, G, and T")
   var randAssignN = true
   @Args4jOption(required = false, name = "-max_N_count", usage = "upper limit for uncalled base count")
-  var maxNCount: Int = 10
+  var maxNCount: Int = 2
   @Args4jOption(required = false, name = "-ten_x", usage = "transform 10x format")
   var tenX = false
   @Args4jOption(required = false, name = "-barcode_len", usage = "barcode length")
