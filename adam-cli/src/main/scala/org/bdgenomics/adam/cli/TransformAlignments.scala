@@ -603,11 +603,12 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         if (args.randAssignN) {
           val taggedRdd = outputRdd.rdd
             .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
-            .mapPartitions(new AtgxRandNucAssigner().assign(_, maxNCount))
-          if (args.tenX)
-            taggedRdd.mapPartitions(trimmer.get.trim(_, partitionSerialOffset))
+          val filteredRdd = taggedRdd
+            .mapPartitions(new AtgxMultipleNFilter().filterN(_, maxNCount))
+          val trimmedRdd = if (args.tenX)
+            filteredRdd.mapPartitions(trimmer.get.trim)
           else
-            taggedRdd
+            filteredRdd
         } else
           outputRdd.rdd
             .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
