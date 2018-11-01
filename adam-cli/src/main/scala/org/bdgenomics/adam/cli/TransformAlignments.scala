@@ -588,7 +588,6 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
 
     if (args.tagReadName) {
       val partitionSerialOffset = args.tagPartRange
-      val maxNCount = args.maxNCount
       if (outputRdd.rdd.getNumPartitions > args.tagPartNum) {
         throw new Exception("Paired-end input is limited with partition number " + args.tagPartNum)
       }
@@ -604,7 +603,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           val taggedRdd = outputRdd.rdd
             .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
           val filteredRdd = taggedRdd
-            .mapPartitions(new AtgxMultipleNFilter().filterN(_, maxNCount))
+            .mapPartitions(new AtgxMultipleNFilter().filterN(_, args.maxNCount))
           val trimmedRdd = if (args.tenX)
             filteredRdd.mapPartitions(trimmer.get.trim)
           else

@@ -11,8 +11,8 @@ class AtgxRandNucAssigner {
     val randGen = scala.util.Random
 
     iter.toList
-      .map{ record =>
-        val replacedSeq = record.getSequence.map{ c =>
+      .map { record =>
+        val replacedSeq = record.getSequence.map { c =>
           if (c == 'N')
             alphabet(randGen.nextInt(4))
           else
