@@ -21,7 +21,12 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
   val unknownCnt = sc.longAccumulator("unknown_counter")
 
   def trim(iter: Iterator[AlignmentRecord], partitionSerialOffset: Int = 268435456): Iterator[AlignmentRecord] = {
-    iter.map(trimmer)
+    val list = iter.toList
+    val length = list.length
+    val read1 = list.slice(0, length / 2)
+    val read2 = list.slice(length / 2, length)
+    (read1 zip read2).flatMap { case (r1, r2) => trimmer(r1, r2) }
+      .toIterator
   }
 
   def statistics(): Unit = {
@@ -33,16 +38,17 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
     println(s"10x barcode unknown: ${unknownCnt.value} ${unknownCnt.value.toDouble / total * 100}")
   }
 
-  private def trimmer(record: AlignmentRecord): AlignmentRecord = {
+  private def trimmer(r1: AlignmentRecord, r2: AlignmentRecord): List[AlignmentRecord] = {
     val EXTEND = 0xFFFFFFFFFFFFFFFFL
-    val seq = record.getSequence
+    val seq = r1.getSequence
     val barcode = seq.substring(0, barcodeLen)
     val (code, result) = matchWhitelist(barcode)
     val encodedBarcode = code & EXTEND & result
 
-    record.setSequence(seq.substring(barcodeLen + nMerLen))
-    record.setReadName(record.getReadName + " " + encodedBarcode)
-    record
+    r1.setSequence(seq.substring(barcodeLen + nMerLen))
+    r1.setReadName(r1.getReadName + " " + encodedBarcode)
+    r2.setReadName(r2.getReadName + " " + encodedBarcode)
+    List(r1, r2)
   }
 
   private def matchWhitelist(barcode: String): (Int, Long) = {
