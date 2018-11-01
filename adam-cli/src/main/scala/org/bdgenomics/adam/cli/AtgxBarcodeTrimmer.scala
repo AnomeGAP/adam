@@ -7,10 +7,9 @@ import org.bdgenomics.adam.util.ArrayByteUtils._
 import scala.math.BigInt
 
 object AtgxBarcodeTrimmer {
-  final val MATCH = 0x0000000FFFFFFFFFL
-  final val MISMATCH1 = 0x0000001FFFFFFFFFL
-  final val AMBIGUOUS = 0x0000010FFFFFFFFFL
-  final val UNKNOWN = 0x0000011FFFFFFFFFL
+  // store barcode via 2bit encoded
+  // if barcode not in whitelist, then store 0(16 A's)
+  final val UNKNOWN_BARCODE = 0
 }
 
 class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitelistPath: String) extends Serializable {
@@ -39,24 +38,22 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
   }
 
   private def trimmer(r1: AlignmentRecord, r2: AlignmentRecord): List[AlignmentRecord] = {
-    val EXTEND = 0xFFFFFFFFFFFFFFFFL
     val seq = r1.getSequence
     val barcode = seq.substring(0, barcodeLen)
-    val (code, result) = matchWhitelist(barcode)
-    val encodedBarcode = code & EXTEND & result
+    val code = matchWhitelist(barcode)
 
     r1.setSequence(seq.substring(barcodeLen + nMerLen))
-    r1.setReadName(r1.getReadName + " " + encodedBarcode)
-    r2.setReadName(r2.getReadName + " " + encodedBarcode)
+    r1.setReadName(r1.getReadName + " " + code)
+    r2.setReadName(r2.getReadName + " " + code)
     List(r1, r2)
   }
 
-  private def matchWhitelist(barcode: String): (Int, Long) = {
+  private def matchWhitelist(barcode: String): Int = {
     val wl = whitelist.value
     val key = seqToHash(barcode)
     if (wl.contains(key)) {
       matchCnt.add(1)
-      wl(key) -> AtgxBarcodeTrimmer.MATCH
+      wl(key)
     } else {
       val hammingOne = getHammingOne(barcode)
       val hammingTest = hammingOne.map(wl.contains).map(i => if (i) 1 else 0)
@@ -65,17 +62,17 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
       result match {
         case 0 => {
           unknownCnt.add(1)
-          BigInt(encode(barcode)._1).toInt -> AtgxBarcodeTrimmer.UNKNOWN
+          AtgxBarcodeTrimmer.UNKNOWN_BARCODE
         }
         case 1 => {
           val key = hammingTest.zip(hammingOne).find { case (r, _) => r == 1 }.get._2
           val correctedBarcode = wl(key)
           mismatchOneCnt.add(1)
-          correctedBarcode -> AtgxBarcodeTrimmer.MISMATCH1
+          correctedBarcode
         }
         case _ => {
           ambiguousCnt.add(1)
-          BigInt(encode(barcode)._1).toInt -> AtgxBarcodeTrimmer.AMBIGUOUS
+          AtgxBarcodeTrimmer.UNKNOWN_BARCODE
         }
       }
     }
