@@ -40,11 +40,12 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
   private def trimmer(r1: AlignmentRecord, r2: AlignmentRecord): List[AlignmentRecord] = {
     val seq = r1.getSequence
     val quality = r1.getQual
-    val barcode = seq.substring(0, barcodeLen)
+    // create a new String to allow the original String to be GC
+    val barcode = new String(seq.substring(0, barcodeLen))
     val code = matchWhitelist(barcode)
 
-    r1.setSequence(seq.substring(barcodeLen + nMerLen))
-    r1.setQual(quality.substring(barcodeLen + nMerLen))
+    r1.setSequence(new String(seq.substring(barcodeLen + nMerLen)))
+    r1.setQual(new String(quality.substring(barcodeLen + nMerLen)))
     r1.setReadName(r1.getReadName + " " + code)
     r2.setReadName(r2.getReadName + " " + code)
     List(r1, r2)
@@ -96,7 +97,7 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
     (for {
       (b, idx) <- seq.zipWithIndex.toList
       base <- baseDict(b)
-    } yield seq.substring(0, idx) + base + seq.substring(idx + 1)).map(seqToHash)
+    } yield new String(seq.substring(0, idx)) + base + new String(seq.substring(idx + 1))).map(seqToHash)
   }
 
   private def seqToHash(seq: String): Long = {
