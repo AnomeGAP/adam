@@ -4,6 +4,7 @@ import org.apache.spark.SparkContext
 import org.bdgenomics.formats.avro.AlignmentRecord
 import org.bdgenomics.adam.util.ArrayByteUtils._
 
+import scala.collection.mutable.Queue
 import scala.math.BigInt
 
 object AtgxBarcodeTrimmer {
@@ -20,15 +21,17 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
   val unknownCnt = sc.longAccumulator("unknown_counter")
 
   def trim(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
-    val (read1, read2) = iter.partition { record =>
+    val queue = new Queue[String]
+    iter.map { record =>
       val name = record.getReadName
-      // even read ID will belong to read1
-      if ((name.split(' ').last.toLong & 0x1) == 0)
-        true
-      else
-        false
+      if ((name.split(' ').last.toLong & 0x1) == 0) {
+        val (r1, code) = trimBarcode(record)
+        queue.enqueue(code)
+        r1
+      } else {
+        addBarcode(record, queue.dequeue())
+      }
     }
-    (read1 zip read2).flatMap { case (r1, r2) => trimmer(r1, r2) }
   }
 
   def statistics(): Unit = {
@@ -40,7 +43,7 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
     println(s"10x barcode unknown: ${unknownCnt.value} ${unknownCnt.value.toDouble / total * 100}")
   }
 
-  private def trimmer(r1: AlignmentRecord, r2: AlignmentRecord): List[AlignmentRecord] = {
+  private def trimBarcode(r1: AlignmentRecord): (AlignmentRecord, String) = {
     val seq = r1.getSequence
     val quality = r1.getQual
     // create a new String to allow the original String to be GC
@@ -50,8 +53,12 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
     r1.setSequence(new String(seq.substring(barcodeLen + nMerLen)))
     r1.setQual(new String(quality.substring(barcodeLen + nMerLen)))
     r1.setReadName(r1.getReadName + " " + code)
-    r2.setReadName(r2.getReadName + " " + code)
-    List(r1, r2)
+    r1 -> barcode
+  }
+
+  private def addBarcode(r2: AlignmentRecord, barcode: String): AlignmentRecord = {
+    r2.setReadName(r2.getReadName + " " + barcode)
+    r2
   }
 
   private def matchWhitelist(barcode: String): Int = {
