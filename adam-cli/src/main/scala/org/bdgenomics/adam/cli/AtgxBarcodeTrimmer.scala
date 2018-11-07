@@ -20,12 +20,15 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
   val unknownCnt = sc.longAccumulator("unknown_counter")
 
   def trim(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
-    val array = iter.toArray
-    val length = array.length
-    val read1 = array.slice(0, length / 2)
-    val read2 = array.slice(length / 2, length)
+    val (read1, read2) = iter.partition { record =>
+      val name = record.getReadName
+      // even read ID will belong to read1
+      if ((name.split(' ').last.toLong & 0x1) == 0)
+        true
+      else
+        false
+    }
     (read1 zip read2).flatMap { case (r1, r2) => trimmer(r1, r2) }
-      .toIterator
   }
 
   def statistics(): Unit = {
