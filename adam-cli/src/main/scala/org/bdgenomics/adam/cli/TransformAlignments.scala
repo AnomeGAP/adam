@@ -21,6 +21,7 @@ import htsjdk.samtools.ValidationStringency
 import java.time.Instant
 
 import org.apache.parquet.filter2.dsl.Dsl._
+import org.apache.parquet.hadoop.metadata.CompressionCodecName
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{ SparkContext, TaskContext }
 import org.apache.spark.storage.StorageLevel
@@ -167,6 +168,7 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   var nMerLen = 7
   @Args4jOption(required = false, name = "-barcode_whitelist", usage = "barcode whitelist",
     depends = { Array[String]("-tag_reads", "-ten_x") })
+  var barcodeWhitelist = ""
   @Args4jOption(required = false, name = "-collapse_dup_reads", usage = "collect reads with same sequences",
     depends = { Array[String]("-tag_reads") })
   var colDupReads = false
@@ -176,7 +178,6 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   @Args4jOption(required = false, name = "-quality_encode", usage = "encode quality with depth",
     depends = { Array[String]("-tag_reads") })
   var encodeQuality = false
-  var barcodeWhitelist = ""
   var command: String = null
 }
 
@@ -653,7 +654,12 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
             coldupRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true))
           )
           AlignmentRecordRDD(filteredRdd, outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
-            .save(args, isSorted = args.sortReads || args.sortLexicographically)
+            //  .save(args, isSorted = args.sortReads || args.sortLexicographically)
+            .saveAsParquet(args.outputPath + "_filtered",
+              128 * 1024 * 1024,
+              1 * 1024 * 1024,
+              CompressionCodecName.GZIP,
+              false)
         }
 
         retRdd
