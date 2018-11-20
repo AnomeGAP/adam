@@ -6,13 +6,13 @@ import org.bdgenomics.adam.util.ArrayByteUtils._
 
 import scala.math.BigInt
 
-object AtgxBarcodeTrimmer {
+object AtgxReadsBarcodeTrimmer {
   // store barcode via 2bit encoded
   // if barcode not in whitelist, then store 0(16 A's)
   final val UNKNOWN_BARCODE = 0
 }
 
-class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitelistPath: String) extends Serializable {
+class AtgxReadsBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitelistPath: String) extends Serializable {
   val whitelist = sc.broadcast(sc.textFile(whitelistPath).map(i => seqToHash(i) -> BigInt(encode(i)._1).toInt).collect().toMap)
   val matchCnt = sc.longAccumulator("match_counter")
   val mismatchOneCnt = sc.longAccumulator("mismatch1_counter")
@@ -65,7 +65,7 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
       result match {
         case 0 => {
           unknownCnt.add(1)
-          AtgxBarcodeTrimmer.UNKNOWN_BARCODE
+          AtgxReadsBarcodeTrimmer.UNKNOWN_BARCODE
         }
         case 1 => {
           val key = hammingTest.zip(hammingOne).find { case (r, _) => r == 1 }.get._2
@@ -75,7 +75,7 @@ class AtgxBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, whitel
         }
         case _ => {
           ambiguousCnt.add(1)
-          AtgxBarcodeTrimmer.UNKNOWN_BARCODE
+          AtgxReadsBarcodeTrimmer.UNKNOWN_BARCODE
         }
       }
     }

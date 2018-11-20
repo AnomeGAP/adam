@@ -2,7 +2,7 @@ package org.bdgenomics.adam.cli
 
 import org.bdgenomics.formats.avro.AlignmentRecord
 
-class AtgxRandNucAssigner {
+class AtgxReadsRandNucAssigner {
   /**
    * do random nucleotide assignment to N base of input sequence
    */

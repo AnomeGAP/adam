@@ -21,6 +21,7 @@ import htsjdk.samtools.ValidationStringency
 import java.time.Instant
 
 import org.apache.parquet.filter2.dsl.Dsl._
+import org.apache.spark.rdd.RDD
 import org.apache.spark.{ SparkContext, TaskContext }
 import org.apache.spark.storage.StorageLevel
 import org.bdgenomics.adam.algorithms.consensus._
@@ -141,31 +142,40 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   @Args4jOption(required = false, name = "-tag_reads", usage = "tag read name with serial numbers for coding pair-end information")
   var tagReadName = false
   @Args4jOption(required = false, name = "-tag_partition_range", usage = "tag number for a partition",
-                depends = {Array[String]("-tag_reads")})
+    depends = { Array[String]("-tag_reads") })
   var tagPartRange = 2097152
   @Args4jOption(required = false, name = "-tag_partition_num", usage = "maximum number of partitions supported by -tag_reads option",
-                depends = {Array[String]("-tag_reads")})
+    depends = { Array[String]("-tag_reads") })
   var tagPartNum = 524288
   @Args4jOption(required = false, name = "-rand_assign_n", usage = "randomly assign N to one of the nucleotides A, C, G, and T",
-                depends = {Array[String]("-tag_reads")})
+    depends = { Array[String]("-tag_reads") })
   var randAssignN = false
   @Args4jOption(required = false, name = "-filter_n", usage = "filter reads with uncalled base count >= max_N_count, defaulted as 2",
-                depends = {Array[String]("-tag_reads")})
+    depends = { Array[String]("-tag_reads") })
   var filterN = false
   @Args4jOption(required = false, name = "-max_N_count", usage = "upper limit for uncalled base count",
-                depends = {Array[String]("-tag_reads", "-filter_n")})
+    depends = { Array[String]("-tag_reads", "-filter_n") })
   var maxNCount: Int = 2
   @Args4jOption(required = false, name = "-ten_x", usage = "transform 10x format",
-                depends = {Array[String]("-tag_reads")})
+    depends = { Array[String]("-tag_reads") })
   var tenX = false
   @Args4jOption(required = false, name = "-barcode_len", usage = "barcode length",
-                depends = {Array[String]("-tag_reads", "-ten_x")})
+    depends = { Array[String]("-tag_reads", "-ten_x") })
   var barcodeLen = 16
   @Args4jOption(required = false, name = "-n_mer_len", usage = "N-mer length",
-                depends = {Array[String]("-tag_reads", "-ten_x")})
+    depends = { Array[String]("-tag_reads", "-ten_x") })
   var nMerLen = 7
   @Args4jOption(required = false, name = "-barcode_whitelist", usage = "barcode whitelist",
-                depends = {Array[String]("-tag_reads", "-ten_x")})
+    depends = { Array[String]("-tag_reads", "-ten_x") })
+  @Args4jOption(required = false, name = "-collapse_dup_reads", usage = "collect reads with same sequences",
+    depends = { Array[String]("-tag_reads") })
+  var colDupReads = false
+  @Args4jOption(required = false, name = "-filter_lc_reads", usage = "filter low complexity reads",
+    depends = { Array[String]("-tag_reads") })
+  var filterLCReads = false
+  @Args4jOption(required = false, name = "-quality_encode", usage = "encode quality with depth",
+    depends = { Array[String]("-tag_reads") })
+  var encodeQuality = false
   var barcodeWhitelist = ""
   var command: String = null
 }
@@ -604,7 +614,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
       }
 
       val trimmer = if (args.tenX) {
-        Some(new AtgxBarcodeTrimmer(sc, args.barcodeLen, args.nMerLen, args.barcodeWhitelist))
+        Some(new AtgxReadsBarcodeTrimmer(sc, args.barcodeLen, args.nMerLen, args.barcodeWhitelist))
       } else {
         None
       }
@@ -612,17 +622,41 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
       val atgxRdd = {
         val taggedRdd = outputRdd.rdd
           .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
+
         val trimmedRdd =
           if (args.tenX) taggedRdd.mapPartitions(trimmer.get.trim)
           else taggedRdd
+
         val maxN = args.maxNCount
         val filteredRdd =
-          if (args.filterN) trimmedRdd.mapPartitions(new AtgxMultipleNFilter().filterN(_, maxN))
+          if (args.filterN) trimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, false))
           else trimmedRdd
-        val resRdd =
-          if (args.randAssignN) filteredRdd.mapPartitions(new AtgxRandNucAssigner().assign(_))
+
+        val reassnRdd =
+          if (args.randAssignN) filteredRdd.mapPartitions(new AtgxReadsRandNucAssigner().assign(_))
           else filteredRdd
-        resRdd
+
+        val coldupRdd =
+          if (args.colDupReads)
+            new AtgxReadsDupCollapse().collapse(reassnRdd)
+          else reassnRdd
+
+        val retRdd =
+          if (args.filterLCReads)
+            coldupRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false))
+          else
+            reassnRdd
+
+        // generate and save filtered AlignmentRecord entry
+        if (args.filterN || args.filterLCReads) {
+          val filteredRdd = trimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, true)).union(
+            coldupRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true))
+          )
+          AlignmentRecordRDD(filteredRdd, outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
+            .save(args, isSorted = args.sortReads || args.sortLexicographically)
+        }
+
+        retRdd
       }
 
       AlignmentRecordRDD(atgxRdd, outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
