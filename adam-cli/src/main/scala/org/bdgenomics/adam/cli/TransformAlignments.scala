@@ -630,7 +630,21 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
 
         val maxN = args.maxNCount
         val filteredRdd =
-          if (args.filterN) trimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, false))
+          if (args.filterN) {
+            // generate and save N filtered AlignmentRecord entry
+            AlignmentRecordRDD(
+              trimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, true)),
+              outputRdd.sequences,
+              outputRdd.recordGroups,
+              outputRdd.processingSteps)
+              .saveAsParquet(args.outputPath + "_Nfiltered",
+                128 * 1024 * 1024,
+                1 * 1024 * 1024,
+                CompressionCodecName.GZIP,
+                false)
+
+            trimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, false))
+          }
           else trimmedRdd
 
         val reassnRdd =
@@ -643,34 +657,24 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           else reassnRdd
 
         val retRdd =
-          if (args.filterLCReads)
+          if (args.filterLCReads) {
+            // generate and save LC filtered AlignmentRecord entry
+            AlignmentRecordRDD(
+              coldupRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true)),
+              outputRdd.sequences,
+              outputRdd.recordGroups,
+              outputRdd.processingSteps)
+              .saveAsParquet(args.outputPath + "_LCfiltered",
+                128 * 1024 * 1024,
+                1 * 1024 * 1024,
+                CompressionCodecName.GZIP,
+                false
+              )
+
             coldupRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false))
+          }
           else
             coldupRdd
-
-        // generate and save N filtered AlignmentRecord entry
-        if (args.filterN) {
-          val filtNRdd = trimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, true))
-          AlignmentRecordRDD(filtNRdd, outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
-            //  .save(args, isSorted = args.sortReads || args.sortLexicographically)
-            .saveAsParquet(args.outputPath + "_Nfiltered",
-              128 * 1024 * 1024,
-              1 * 1024 * 1024,
-              CompressionCodecName.GZIP,
-              false)
-        }
-
-        // generate and save LC filtered AlignmentRecord entry
-        if (args.filterLCReads) {
-          val filtLCRdd = coldupRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true))
-          AlignmentRecordRDD(filtLCRdd, outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
-            //  .save(args, isSorted = args.sortReads || args.sortLexicographically)
-            .saveAsParquet(args.outputPath + "_LCfiltered",
-            128 * 1024 * 1024,
-            1 * 1024 * 1024,
-            CompressionCodecName.GZIP,
-            false)
-        }
 
         retRdd
       }
