@@ -5,15 +5,18 @@ import org.bdgenomics.formats.avro.AlignmentRecord
 import scala.collection.mutable.ArrayBuffer
 
 class AtgxReadsDupCollapse extends java.io.Serializable {
-  var readName = ""
-  var serialNumber = 0L
-  var barcode = 0L
-  //TODO: binary search => array
-  val qLevel: Array[Int] = Array[Int](0, 33, 40, 47, 54, 61, 68, 75)
+  val qLevel: Array[Int] = Array[Int](
+    33, 33, 33, 33, 33, 33, 33,
+         40, 40, 40, 40, 40, 40, 40,
+         47, 47, 47, 47, 47, 47, 47,
+         54, 54, 54, 54, 54, 54, 54,
+         61, 61, 61, 61, 61, 61, 61,
+         68, 68, 68, 68, 68, 68, 68)
+
   val dLevel: Array[Int] = Array[Int](0, 5, 15, 35, 75, 155, 315, Int.MaxValue)
 
   def collapse(rdd: RDD[AlignmentRecord]): RDD[AlignmentRecord] = {
-    val g = rdd
+    rdd
       .flatMap(
         fw => {
           val rc = new AlignmentRecord
@@ -22,17 +25,31 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
             (false, fw.getReadName.split(" ")(1).toLong, fw),
             (true, fw.getReadName.split(" ")(1).toLong, rc))
         })
-      //TODO: try aggregate by key
       .keyBy(x => x._3.getSequence)
-      .groupByKey
-      .map(x => (x._2.minBy(z => z._2), x._2.toArray.length))
-      .flatMap(x => {
-        val ret = ArrayBuffer.empty[AlignmentRecord]
-        if (!x._1._1)
-          ret.append(x._1._3)
-        ret
-      })
-    g
+      .aggregateByKey(List.empty[(Boolean, Long, AlignmentRecord)])({ case (r, c) => c :: r }, { case (r, c) => c ::: r })
+      .map(minByWithCount)
+      //      .map(x => (x._2.minBy(z => z._2), x._2.toArray.length))
+      .flatMap(
+        x => {
+          if (!x._1._1)
+            Some(x._1._3)
+          else
+            None
+    })
+  }
+
+  def minByWithCount(x: (String, List[(Boolean, Long, AlignmentRecord)])): ((Boolean, Long, AlignmentRecord), Int) = {
+    var min = Long.MaxValue
+    var count = 0
+    var index = 0
+    for (i <- x._2.indices) {
+      if (x._2(i)._2 < min) {
+        min = x._2(i)._2
+        index = i
+      }
+      count += 1
+    }
+    (x._2(index), count)
   }
 
   // convert Illumina 1.8+ Phred+33 quality score, with value range of 33-74, to depth encoded value
@@ -43,11 +60,7 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
           x => {
             if (x.toInt > 74 || x.toInt < 33)
               throw new Exception("given quality does not follow Illumina 1.8+ Phred+33 quality score format")
-            (
-              qLevel(binarySearch(x.toInt, qLevel, 0, qLevel.length)) +
-              dLevel(binarySearch(depth, dLevel, 0, dLevel.length))
-            )
-              .toChar
+            (qLevel(x.toInt) + dLevel(binarySearch(depth, dLevel, 0, dLevel.length))).toChar
           })
     )
     item
