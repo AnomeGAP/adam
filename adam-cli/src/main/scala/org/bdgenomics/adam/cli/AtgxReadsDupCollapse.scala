@@ -2,34 +2,37 @@ package org.bdgenomics.adam.cli
 
 import org.apache.spark.rdd.RDD
 import org.bdgenomics.formats.avro.AlignmentRecord
-
-import scala.annotation.switch
 import scala.collection.mutable.ArrayBuffer
 
-class AtgxReadsDupCollapse {
+class AtgxReadsDupCollapse extends java.io.Serializable {
   var readName = ""
   var serialNumber = 0L
   var barcode = 0L
+  //TODO: binary search => array
   val qLevel: Array[Int] = Array[Int](0, 33, 40, 47, 54, 61, 68, 75)
   val dLevel: Array[Int] = Array[Int](0, 5, 15, 35, 75, 155, 315, Int.MaxValue)
 
   def collapse(rdd: RDD[AlignmentRecord]): RDD[AlignmentRecord] = {
-    rdd
-      .flatMap(fw => {
-        val rc = fw
-        rc.setSequence(reverseComplementary(fw.getSequence))
-        ArrayBuffer[(Boolean, Long, AlignmentRecord)](
-          (false, fw.getReadName.split(" ")(1).toLong, fw),
-          (true, fw.getReadName.split(" ")(1).toLong, rc)
-        )
-      })
+    val g = rdd
+      .flatMap(
+        fw => {
+          val rc = new AlignmentRecord
+          rc.setSequence(reverseComplementary(fw.getSequence))
+          ArrayBuffer[(Boolean, Long, AlignmentRecord)](
+            (false, fw.getReadName.split(" ")(1).toLong, fw),
+            (true, fw.getReadName.split(" ")(1).toLong, rc))
+        })
+      //TODO: try aggregate by key
       .keyBy(x => x._3.getSequence)
       .groupByKey
       .map(x => (x._2.minBy(z => z._2), x._2.toArray.length))
-      .map(x => x._1)
-
-      .filter(x => !x._1)
-      .map(x => x._3)
+      .flatMap(x => {
+        val ret = ArrayBuffer.empty[AlignmentRecord]
+        if (!x._1._1)
+          ret.append(x._1._3)
+        ret
+      })
+    g
   }
 
   // convert Illumina 1.8+ Phred+33 quality score, with value range of 33-74, to depth encoded value

@@ -2,7 +2,7 @@ package org.bdgenomics.adam.cli
 import org.bdgenomics.formats.avro.AlignmentRecord
 import scala.annotation.switch
 
-class AtgxReadsLCFilter {
+class AtgxReadsLCFilter extends java.io.Serializable {
   // return tuple of (Iterator(ordinary reads), Iterator(low complexity reads)
   def filterReads(iter: Iterator[AlignmentRecord], invFlag: Boolean = false, kmer: Int = 3): Iterator[AlignmentRecord] = {
     val q =
@@ -29,7 +29,7 @@ class AtgxReadsLCFilter {
       sum += math.pow(4, i).toInt * nuc2num(str(i))
     sum
   }
-
+  //TODO: reuse existence kmer index
   def scanKmer(str: String, kmer: Int, threshold: Int): Boolean = {
     val halfLen = str.length / 2
     val ofw = new Array[Int](math.pow(4, kmer).toInt)
@@ -42,6 +42,8 @@ class AtgxReadsLCFilter {
       false
   }
 
+  //TODO: in polyA scenario, kmer AAA will reach threshold 25 when the actual sequence includes 27 polyA.  should we take it as LC regions ?
+  //TODO: calculate entropy
   // identify reads with single nucleotides as low complexity reads
   def isLC(str: String, kmer: Int = 3): Boolean = {
     val halfLen = str.length / 2
