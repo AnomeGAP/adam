@@ -4,19 +4,17 @@ import org.bdgenomics.formats.avro.AlignmentRecord
 
 class AtgxReadsNucTrimmer {
   def trimHead(iter: Iterator[AlignmentRecord], tenX: Boolean): Iterator[AlignmentRecord] = {
-    val array = iter.toArray
-    val length = array.length
-    val read1 = array.slice(0, length / 2)
-    val read2 = array.slice(length / 2, length)
-
-    val trimmedR1 = if (tenX) {
-      read1
-    } else {
-      read1.map(trimHeadN)
+    iter.map { record =>
+      val name = record.getReadName
+      val nameAry = name.split(' ')
+      val len = nameAry.length
+      // use read name to identify read1 read2
+      if ((nameAry(len - 2).toLong & 0x1) == 0) {
+        if (tenX) record else trimHeadN(record)
+      } else {
+        trimHeadN(record)
+      }
     }
-
-    (trimmedR1 ++ read2.map(trimHeadN))
-      .toIterator
   }
 
   def trimTail(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
@@ -24,25 +22,28 @@ class AtgxReadsNucTrimmer {
   }
 
   def trimBoth(iter: Iterator[AlignmentRecord], tenX: Boolean): Iterator[AlignmentRecord] = {
-    val array = iter.toArray
-    val length = array.length
-    val read1 = array.slice(0, length / 2)
-    val read2 = array.slice(length / 2, length)
-
-    val trimmedRead1 = if (tenX) {
-      read1.map(trimTailN)
-    } else {
-      read1.map(trimHeadN _ andThen trimTailN)
+    iter.map { record =>
+      val name = record.getReadName
+      val nameAry = name.split(' ')
+      val len = nameAry.length
+      // use read name to identify read1 read2
+      if ((nameAry(len - 2).toLong & 0x1) == 0) {
+        if (tenX) trimTailN(record) else (trimHeadN _ andThen trimTailN)(record)
+      } else {
+        (trimHeadN _ andThen trimTailN)(record)
+      }
     }
-    val trimmedRead2 = read2.map(trimHeadN _ andThen trimTailN)
-
-    (trimmedRead1 ++ trimmedRead2).toIterator
   }
 
   private def trimHeadN(record: AlignmentRecord): AlignmentRecord = {
     val seq = record.getSequence
     val trimmedSeq = trimH(seq)
     record.setSequence(trimmedSeq)
+
+    val len = seq.length - trimmedSeq.length
+    val newQuality = record.getQual.substring(len)
+    record.setQual(newQuality)
+
     record
   }
 
@@ -50,6 +51,10 @@ class AtgxReadsNucTrimmer {
     val seq = record.getSequence
     val trimmedSeq = trimT(seq)
     record.setSequence(trimmedSeq)
+
+    val newQuality = record.getQual.substring(0, trimmedSeq.length)
+    record.setQual(newQuality)
+
     record
   }
 
