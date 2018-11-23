@@ -13,7 +13,45 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
          61, 61, 61, 61, 61, 61, 61,
          68, 68, 68, 68, 68, 68, 68)
 
-  val dLevel: Array[Int] = Array[Int](0, 5, 15, 35, 75, 155, 315, Int.MaxValue)
+  val dLevel: Array[Int] = Array[Int](
+    0, 0, 0, 0, 0, 
+
+         5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+
+         15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+         15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+
+         35, 35, 35, 35, 35, 35, 35, 35, 35, 35,
+         35, 35, 35, 35, 35, 35, 35, 35, 35, 35,
+         35, 35, 35, 35, 35, 35, 35, 35, 35, 35,
+         35, 35, 35, 35, 35, 35, 35, 35, 35, 35,
+
+         75, 75, 75, 75, 75, 75, 75, 75, 75, 75,
+         75, 75, 75, 75, 75, 75, 75, 75, 75, 75,
+         75, 75, 75, 75, 75, 75, 75, 75, 75, 75,
+         75, 75, 75, 75, 75, 75, 75, 75, 75, 75,
+         75, 75, 75, 75, 75, 75, 75, 75, 75, 75,
+         75, 75, 75, 75, 75, 75, 75, 75, 75, 75,
+         75, 75, 75, 75, 75, 75, 75, 75, 75, 75,
+         75, 75, 75, 75, 75, 75, 75, 75, 75, 75,
+
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155, 
+         155, 155, 155, 155, 155, 155, 155, 155, 155, 155
+    )
 
   def collapse(rdd: RDD[AlignmentRecord]): RDD[AlignmentRecord] = {
     rdd
@@ -60,21 +98,10 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
           x => {
             if (x.toInt > 74 || x.toInt < 33)
               throw new Exception("given quality does not follow Illumina 1.8+ Phred+33 quality score format")
-            (qLevel(x.toInt) + dLevel(binarySearch(depth, dLevel, 0, dLevel.length))).toChar
+            (qLevel(x.toInt) + dLevel(math.min(depth, 314))).toChar
           })
     )
     item
-  }
-
-  def binarySearch(query: Int, target: Array[Int], start: Int, end: Int): Int = {
-    val diff: Int = (end - start) / 2
-    val middle = diff + start
-    if (query < target(middle)) {
-      binarySearch(query, target, start, middle)
-    } else if (query > target(middle + 1)) {
-      binarySearch(query, target, middle + 1, end)
-    } else
-      middle
   }
 
   def reverseComplementary(s: String): String = {
