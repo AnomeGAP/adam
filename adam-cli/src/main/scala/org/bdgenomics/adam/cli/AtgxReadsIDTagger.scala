@@ -3,7 +3,7 @@ package org.bdgenomics.adam.cli
 import org.apache.spark.TaskContext
 import org.bdgenomics.formats.avro.AlignmentRecord
 
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.HashSet
 
 class AtgxReadsIDTagger {
   /**
@@ -17,11 +17,6 @@ class AtgxReadsIDTagger {
    * length of 151.
    */
   def tag(iter: Iterator[AlignmentRecord], partitionSerialOffset: Int = 2097152): Iterator[AlignmentRecord] = {
-    val content = iter.toArray
-    val pairBound = content.length / 2
-    val itr = content.iterator
-    val serialOffset = TaskContext.getPartitionId().toLong * partitionSerialOffset
-    var counter = 0
 
     /**
      * INPUT:
@@ -46,20 +41,22 @@ class AtgxReadsIDTagger {
      *
      * *
      */
-    var pairOne = true
-    val res = new ArrayBuffer[AlignmentRecord]()
+    val serialOffset = TaskContext.getPartitionId().toLong * partitionSerialOffset
+    val traversedRead = new HashSet[String]
+    var r1counter = 0
+    var r2counter = 0
 
-    while (itr.hasNext) {
-      if (counter == pairBound) {
-        counter = 0
-        pairOne = false
+    iter.map { record =>
+      val name = record.getReadName
+      if (!traversedRead.contains(name)) {
+        traversedRead.add(name)
+        record.setReadName(name + s" ${"%010d".format(r1counter * 2 + serialOffset)}")
+        r1counter += 1
+      } else {
+        record.setReadName(name + s" ${"%010d".format(r2counter * 2 + 1 + serialOffset)}")
+        r2counter += 1
       }
-      val entry = itr.next()
-      if (pairOne) entry.setReadName(entry.getReadName + s" ${"%010d".format(counter * 2 + serialOffset)}")
-      else entry.setReadName(entry.getReadName + s" ${"%010d".format(counter * 2 + 1 + serialOffset)}")
-      counter += 1
-      res.append(entry)
+      record
     }
-    res.iterator
   }
 }
