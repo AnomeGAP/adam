@@ -178,6 +178,15 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   @Args4jOption(required = false, name = "-quality_encode", usage = "encode quality with depth",
     depends = { Array[String]("-tag_reads") })
   var encodeQuality = false
+  @Args4jOption(required = false, name = "-trim_head", usage = "trim head",
+    depends = { Array[String]("-tag_reads") })
+  var trimHead = false
+  @Args4jOption(required = false, name = "-trim_tail", usage = "trim tail",
+    depends = { Array[String]("-tag_reads") })
+  var trimTail = false
+  @Args4jOption(required = false, name = "-trim_both", usage = "trim both",
+    depends = { Array[String]("-tag_reads") })
+  var trimBoth = false
   var command: String = null
 }
 
@@ -625,15 +634,27 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
 
         val trimmedRdd =
-          if (args.tenX) taggedRdd.mapPartitions(trimmer.get.trim)
-          else taggedRdd
+          if (args.tenX)
+            taggedRdd.mapPartitions(trimmer.get.trim)
+          else
+            taggedRdd
+
+        val nucTrimmedRdd = if (args.trimHead) {
+          trimmedRdd.rdd.mapPartitions(new AtgxReadsNucTrimmer().trimHead(_, args.tenX))
+        } else if (args.trimTail) {
+          trimmedRdd.rdd.mapPartitions(new AtgxReadsNucTrimmer().trimTail)
+        } else if (args.trimBoth) {
+          trimmedRdd.rdd.mapPartitions(new AtgxReadsNucTrimmer().trimBoth(_, args.tenX))
+        } else {
+          trimmedRdd
+        }
 
         val maxN = args.maxNCount
         val filteredRdd =
           if (args.filterN) {
             // generate and save N filtered AlignmentRecord entry
             AlignmentRecordRDD(
-              trimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, true)),
+              nucTrimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, true)),
               outputRdd.sequences,
               outputRdd.recordGroups,
               outputRdd.processingSteps)
@@ -643,18 +664,22 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
                 CompressionCodecName.GZIP,
                 false)
 
-            trimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, false))
+            nucTrimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, false))
+          } else {
+            nucTrimmedRdd
           }
-          else trimmedRdd
 
         val reassnRdd =
-          if (args.randAssignN) filteredRdd.mapPartitions(new AtgxReadsRandNucAssigner().assign(_))
-          else filteredRdd
+          if (args.randAssignN)
+            filteredRdd.mapPartitions(new AtgxReadsRandNucAssigner().assign(_))
+          else
+            filteredRdd
 
         val coldupRdd =
           if (args.colDupReads)
             new AtgxReadsDupCollapse().collapse(reassnRdd)
-          else reassnRdd
+          else
+            reassnRdd
 
         val retRdd =
           if (args.filterLCReads) {
@@ -672,9 +697,9 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
               )
 
             coldupRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false))
-          }
-          else
+          } else {
             coldupRdd
+          }
 
         retRdd
       }
