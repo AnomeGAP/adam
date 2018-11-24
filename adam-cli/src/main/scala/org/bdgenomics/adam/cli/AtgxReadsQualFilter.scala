@@ -9,9 +9,10 @@ class AtgxReadsQualFilter extends java.io.Serializable {
 
   @tailrec
   private def scan(qs: String, minQ: Int, maxCount: Int, accum: Int): Int = {
+
     assert(qs.head.toInt <= 75 && qs.head.toInt >= 33)
 
-    if (accum < maxCount){
+    if (accum < maxCount && qs.length > 1){
       if (qs.head.toInt < minQ)
         scan(new String(qs.substring(1)), minQ, maxCount, accum + 1)
       else
