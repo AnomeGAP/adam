@@ -37,12 +37,10 @@ class AtgxReadsInfoWrapper {
       this._barcode = c(1).toInt
       this._SN = c(2)
     }
-//    else
-//      throw new Exception("insufficient field for AtgxReadsInfoWrapper construction")
   }
 
   override def toString: String = {
-    s" ${_ID}#${_barcode}#${_SN}}"
+    s" ${"%10d".format(_ID)}#${"%10d".format(_barcode)}#${_SN}"
   }
 
   def setID(newID: Long): Unit = {

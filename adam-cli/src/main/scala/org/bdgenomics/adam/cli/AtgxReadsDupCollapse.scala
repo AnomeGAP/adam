@@ -53,6 +53,10 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
          155, 155, 155, 155, 155, 155, 155, 155, 155, 155
     )
 
+  val qualMin = 33
+
+  val qualMax = 74
+
   def collapse(rdd: RDD[AlignmentRecord]): RDD[AlignmentRecord] = {
     rdd
       .flatMap(
@@ -67,17 +71,16 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
       .keyBy(x => x._3.getSequence)
       .aggregateByKey(List.empty[(Boolean, Long, AlignmentRecord)])({ case (r, c) => c :: r }, { case (r, c) => c ::: r })
       .map(minByWithCount)
-      //      .map(x => (x._2.minBy(z => z._2), x._2.toArray.length))
       .flatMap(
         x => {
-          if (!x._1._1)
-            Some(x._1._3)
+          if (!x._1)
+            Some(encodeQual(x._2, x._3))
           else
             None
-    })
+        })
   }
 
-  def minByWithCount(x: (String, List[(Boolean, Long, AlignmentRecord)])): ((Boolean, Long, AlignmentRecord), Int) = {
+  def minByWithCount(x: (String, List[(Boolean, Long, AlignmentRecord)])): (Boolean, AlignmentRecord, Int) = {
     var min = Long.MaxValue
     var count = 0
     var index = 0
@@ -88,7 +91,7 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
       }
       count += 1
     }
-    (x._2(index), count)
+    (x._2(index)._1, x._2(index)._3, count)
   }
 
   // convert Illumina 1.8+ Phred+33 quality score, with value range of 33-74, to depth encoded value
@@ -97,12 +100,38 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
       item.getQual
         .map(
           x => {
-            if (x.toInt > 74 || x.toInt < 33)
+            if (x.toInt > qualMax || x.toInt < qualMin)
               throw new Exception("given quality does not follow Illumina 1.8+ Phred+33 quality score format")
-            (qLevel(x.toInt) + dLevel(math.min(depth, 314))).toChar
+            (qLevel(x.toInt - qualMin) + dLevel(math.min(depth, 314))).toChar
           })
     )
     item
+  }
+
+  def decodeQual(item: AlignmentRecord): (String, Array[Int]) = {
+    (item.getQual.map(x => { qLevel(x.toInt - qualMin).toChar }),
+      item.getQual.map(x => { dLevel(x.toInt - qualMin) }).toArray)
+  }
+
+  def reverseComplementary(s: String): String = {
+    val complementary = Map('A' -> 'T', 'T' -> 'A', 'C' -> 'G', 'G' -> 'C')
+    var i = 0
+    var j = s.length - 1
+    val c = s.toCharArray
+
+    while (i < j) {
+      val temp = c(i)
+      c(i) = complementary(c(j))
+      c(j) = complementary(temp)
+      i = i + 1
+      j = j - 1
+    }
+
+    if (s.length % 2 != 0) c(i) = complementary(c(i))
+
+    String.valueOf(c)
+  }
+}
   }
 
   def reverseComplementary(s: String): String = {

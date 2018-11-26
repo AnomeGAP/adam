@@ -53,16 +53,16 @@ class AtgxReadsBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, w
 
     r1.setSequence(new String(seq.substring(barcodeLen + nMerLen)))
     r1.setQual(new String(quality.substring(barcodeLen + nMerLen)))
-    val (_, iw) = AtgxReadsInfoParser.parseFromName(r1.getReadName)
+    val (org, iw) = AtgxReadsInfoParser.parseFromName(r1.getReadName)
     iw.setBarcode(code)
-    r1.setReadName(AtgxReadsInfoParser.updateName(r1.getReadName, iw))
+    r1.setReadName(AtgxReadsInfoParser.updateName(org, iw))
     r1 -> code
   }
 
   private def addBarcode(r2: AlignmentRecord, barcode: Int): AlignmentRecord = {
-    val (_, iw) = AtgxReadsInfoParser.parseFromName(r2.getReadName)
+    val (org, iw) = AtgxReadsInfoParser.parseFromName(r2.getReadName)
     iw.setBarcode(barcode)
-    r2.setReadName(AtgxReadsInfoParser.updateName(r2.getReadName, iw))
+    r2.setReadName(AtgxReadsInfoParser.updateName(org, iw))
     r2
   }
 

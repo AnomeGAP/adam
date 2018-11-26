@@ -49,15 +49,15 @@ class AtgxReadsIDTagger {
       val name = record.getReadName
       if (!traversedRead.contains(name)) {
         traversedRead.add(name)
-        val (_, iw) = AtgxReadsInfoParser.parseFromName(name)
+        val (org, iw) = AtgxReadsInfoParser.parseFromName(name)
         iw.setID(r1counter * 2 + serialOffset)
-        record.setReadName(AtgxReadsInfoParser.updateName(name, iw))
+        record.setReadName(AtgxReadsInfoParser.updateName(org, iw))
 
         r1counter += 1
       } else {
-        val (_, iw) = AtgxReadsInfoParser.parseFromName(name)
+        val (org, iw) = AtgxReadsInfoParser.parseFromName(name)
         iw.setID(r1counter * 2 + 1 + serialOffset)
-        record.setReadName(AtgxReadsInfoParser.updateName(name, iw))
+        record.setReadName(AtgxReadsInfoParser.updateName(org, iw))
         r2counter += 1
       }
       record
