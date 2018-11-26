@@ -24,7 +24,8 @@ class AtgxReadsBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, w
     val queue = new Queue[Int]
     iter.map { record =>
       val name = record.getReadName
-      if ((name.split(' ').last.toLong & 0x1) == 0) {
+      val (_, iw) = AtgxReadsInfoParser.parseFromName(name)
+      if ((iw.getID & 0x1) == 0) {
         val (r1, code) = trimBarcode(record)
         queue.enqueue(code)
         r1
@@ -52,12 +53,16 @@ class AtgxReadsBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, w
 
     r1.setSequence(new String(seq.substring(barcodeLen + nMerLen)))
     r1.setQual(new String(quality.substring(barcodeLen + nMerLen)))
-    r1.setReadName(r1.getReadName + " " + code)
+    val (_, iw) = AtgxReadsInfoParser.parseFromName(r1.getReadName)
+    iw.setBarcode(code)
+    r1.setReadName(AtgxReadsInfoParser.updateName(r1.getReadName, iw))
     r1 -> code
   }
 
   private def addBarcode(r2: AlignmentRecord, barcode: Int): AlignmentRecord = {
-    r2.setReadName(r2.getReadName + " " + barcode)
+    val (_, iw) = AtgxReadsInfoParser.parseFromName(r2.getReadName)
+    iw.setBarcode(barcode)
+    r2.setReadName(AtgxReadsInfoParser.updateName(r2.getReadName, iw))
     r2
   }
 

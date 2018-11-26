@@ -2,8 +2,7 @@ package org.bdgenomics.adam.cli
 
 import org.bdgenomics.formats.avro.AlignmentRecord
 
-import util.control.Breaks._
-import scala.annotation.{switch, tailrec}
+import scala.annotation.tailrec
 
 class AtgxReadsQualFilter extends java.io.Serializable {
 
