@@ -21,7 +21,7 @@ class AtgxReadsBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, w
   val unknownCnt = sc.longAccumulator("unknown_counter")
 
   def trim(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
-    val queue = new Queue[String]
+    val queue = new Queue[Int]
     iter.map { record =>
       val name = record.getReadName
       if ((name.split(' ').last.toLong & 0x1) == 0) {
@@ -43,7 +43,7 @@ class AtgxReadsBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, w
     println(s"10x barcode unknown: ${unknownCnt.value} ${unknownCnt.value.toDouble / total * 100}")
   }
 
-  private def trimBarcode(r1: AlignmentRecord): (AlignmentRecord, String) = {
+  private def trimBarcode(r1: AlignmentRecord): (AlignmentRecord, Int) = {
     val seq = r1.getSequence
     val quality = r1.getQual
     // create a new String to allow the original String to be GC
@@ -53,10 +53,10 @@ class AtgxReadsBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, w
     r1.setSequence(new String(seq.substring(barcodeLen + nMerLen)))
     r1.setQual(new String(quality.substring(barcodeLen + nMerLen)))
     r1.setReadName(r1.getReadName + " " + code)
-    r1 -> barcode
+    r1 -> code
   }
 
-  private def addBarcode(r2: AlignmentRecord, barcode: String): AlignmentRecord = {
+  private def addBarcode(r2: AlignmentRecord, barcode: Int): AlignmentRecord = {
     r2.setReadName(r2.getReadName + " " + barcode)
     r2
   }
