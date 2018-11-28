@@ -40,7 +40,7 @@ class AtgxReadsInfoWrapper {
   }
 
   override def toString: String = {
-    s" ${"%10d".format(_ID)}#${"%10d".format(_barcode)}#${_SN}"
+    s" ${"%010d".format(_ID)}#${"%010d".format(_barcode)}#${_SN}"
   }
 
   def setID(newID: Long): Unit = {
