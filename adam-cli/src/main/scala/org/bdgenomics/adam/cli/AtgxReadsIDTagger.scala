@@ -56,7 +56,7 @@ class AtgxReadsIDTagger {
         r1counter += 1
       } else {
         val (org, iw) = AtgxReadsInfoParser.parseFromName(name)
-        iw.setID(r1counter * 2 + 1 + serialOffset)
+        iw.setID(r2counter * 2 + 1 + serialOffset)
         record.setReadName(AtgxReadsInfoParser.updateName(org, iw))
         r2counter += 1
       }
