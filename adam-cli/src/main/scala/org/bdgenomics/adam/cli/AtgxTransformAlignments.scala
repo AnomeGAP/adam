@@ -1,10 +1,12 @@
 package org.bdgenomics.adam.cli
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{ FileSystem, Path }
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.Partitioner
 import org.bdgenomics.adam.models.SequenceDictionary
 import org.bdgenomics.formats.avro.AlignmentRecord
+
+import scala.collection.immutable
 
 object AtgxTransformAlignments {
   val stopwords = Seq("chrU_", "chrUn_", "chrEBV", "_decoy", "_random", "_hap", "NC_007605", "GL000")
@@ -92,8 +94,8 @@ class AtgxTransformAlignments {
   // |  chrY   |  59373566   |  57227415   |  60000000   |
   // |  chrM   |  16571      |  16569      |  17000      |
   // +---------------------------------------------------+
-  def mkBinSizeMap(fold: Int = 10): Map[String, Int] = {
-    Map(
+  def mkBinSizeMap(fold: Int = 10): collection.Map[String, Int] = {
+    immutable.HashMap(
       "chr1" -> 250000000, "chr2" -> 244000000, "chr3" -> 199000000,
       "chr4" -> 192000000, "chr5" -> 182000000, "chr6" -> 172000000, "chr7" -> 160000000,
       "chr8" -> 147000000, "chr9" -> 142000000, "chr10" -> 136000000, "chr11" -> 136000000,
@@ -125,8 +127,10 @@ class AtgxTransformAlignments {
     val binSizeMap = mkBinSizeMap()
     val map = mkReferenceIdMap(sd)
     val refIndexMap = sd.records.map(x => (x.name, "%05d".format(x.referenceIndex.get))).toMap
-    val words = Seq("chrU_", "chrUn_", "chrEBV", "_decoy", "_random", "_hap", "GL000", "NC_007605", "hs37d5")
     val r = new scala.util.Random // divide unmapped reads equally via random numbers
+    val prewords = Seq("chrU_", "chrUn_", "chrEBV")
+    val sufwords = Seq("_decoy", "_random", "_hap")
+    val conwords = Seq("GL000", "NC_007605", "hs37d5")
 
     iter.flatMap[(String, AlignmentRecord)](x => {
       if (x.getReadMapped == false) { // unmapped reads
@@ -134,14 +138,17 @@ class AtgxTransformAlignments {
         Array((">X-UNMAPPED_%05d_0".format(randomBinNumber), x)) // e.g., X-UNMAPPED_00015_0
       } else {
         val contigName = x.getContigName
-        if (!words.exists(contigName.contains)) { // filter out the unused records
+        if (!prewords.exists(contigName.startsWith) &&
+            !sufwords.exists(contigName.endsWith) &&
+            !conwords.exists(contigName.contains)) { // filter out the unused records
           val posBin = scala.math.floor(x.getStart / partitionSize).toInt
           val paddingStart = "%09d".format(x.getStart.toInt)
           val ci = refIndexMap(contigName)
 
           if (contigName.startsWith("HLA") || contigName.endsWith("alt")) {
             Array((ci + ">" + contigName + "_" + "%05d".format(posBin) + "=" + paddingStart, x))
-          } else {
+          }
+          else {
             // make duplication of the following cases: X-DISCORDANT OR X-SOFTCLIP
             if (!DisableSVDup) {
               if (x.getCigar.contains("S") || x.getProperPair == false) {
@@ -166,7 +173,8 @@ class NewPosBinPartitioner(dict: Map[String, Int]) extends Partitioner {
   override def getPartition(key: Any): Int = key match {
     case key: String =>
       // format => contigNameIndex__contigName_posBin=paddingStart
-      val c = key.split("=")(0).split(">")(1)
+      // val c = key.split("=")(0).split(">")(1)
+      val c = key.split("[>=]")(1)
       if (c.startsWith("HLA")) {
         dict("HLA_0")
       } else if (c.contains("_alt_")) {

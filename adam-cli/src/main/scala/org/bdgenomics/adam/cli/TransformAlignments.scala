@@ -738,7 +738,8 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
       import AtgxTransformAlignments._
       val disableSVDup = args.disableSVDup
       val dict = mkPosBinIndices(sd)
-      val rdd = outputRdd.rdd
+      val rdd = outputRdd
+        .rdd
         .mapPartitions(new AtgxTransformAlignments().transform(sd, _, disableSVDup))
         .repartitionAndSortWithinPartitions(new NewPosBinPartitioner(dict))
         .map(_._2)
