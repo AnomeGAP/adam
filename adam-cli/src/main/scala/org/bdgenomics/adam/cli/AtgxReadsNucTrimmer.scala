@@ -6,10 +6,9 @@ class AtgxReadsNucTrimmer {
   def trimHead(iter: Iterator[AlignmentRecord], tenX: Boolean): Iterator[AlignmentRecord] = {
     iter.map { record =>
       val name = record.getReadName
-      val nameAry = name.split(' ')
-      val len = nameAry.length
-      // use read name to identify read1 read2
-      if ((nameAry(len - 2).toLong & 0x1) == 0) {
+      val (_, iw) = AtgxReadsInfoParser.parseFromName(name)
+      // use readId to identify read1 read2
+      if ((iw.getID() & 0x1) == 0) {
         if (tenX) record else trimHeadN(record)
       } else {
         trimHeadN(record)
@@ -24,10 +23,9 @@ class AtgxReadsNucTrimmer {
   def trimBoth(iter: Iterator[AlignmentRecord], tenX: Boolean): Iterator[AlignmentRecord] = {
     iter.map { record =>
       val name = record.getReadName
-      val nameAry = name.split(' ')
-      val len = nameAry.length
-      // use read name to identify read1 read2
-      if ((nameAry(len - 2).toLong & 0x1) == 0) {
+      val (_, iw) = AtgxReadsInfoParser.parseFromName(name)
+      // use readId to identify read1 read2
+      if ((iw.getID() & 0x1) == 0) {
         if (tenX) trimTailN(record) else (trimHeadN _ andThen trimTailN)(record)
       } else {
         (trimHeadN _ andThen trimTailN)(record)
