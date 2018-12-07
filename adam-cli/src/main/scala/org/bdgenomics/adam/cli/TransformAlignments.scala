@@ -17,26 +17,30 @@
  */
 package org.bdgenomics.adam.cli
 
+import java.io.{BufferedWriter, OutputStreamWriter}
+
 import htsjdk.samtools.ValidationStringency
 import java.time.Instant
 
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.parquet.filter2.dsl.Dsl._
 import org.apache.parquet.hadoop.metadata.CompressionCodecName
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{ SparkContext, TaskContext }
+import org.apache.spark.{SparkContext, TaskContext}
 import org.apache.spark.storage.StorageLevel
 import org.bdgenomics.adam.algorithms.consensus._
 import org.bdgenomics.adam.instrumentation.Timers._
-import org.bdgenomics.adam.models.{ ReferenceRegion, SnpTable }
-import org.bdgenomics.adam.projections.{ AlignmentRecordField, Filter }
+import org.bdgenomics.adam.models.{ReferenceRegion, SnpTable}
+import org.bdgenomics.adam.projections.{AlignmentRecordField, Filter}
 import org.bdgenomics.adam.rdd.ADAMContext._
 import org.bdgenomics.adam.rdd.ADAMSaveAnyArgs
-import org.bdgenomics.adam.rdd.read.{ AlignmentRecordRDD, QualityScoreBin }
+import org.bdgenomics.adam.rdd.read.{AlignmentRecordRDD, QualityScoreBin}
 import org.bdgenomics.adam.rich.RichVariant
-import org.bdgenomics.formats.avro.{ AlignmentRecord, ProcessingStep }
+import org.bdgenomics.formats.avro.{AlignmentRecord, ProcessingStep}
 import org.bdgenomics.utils.cli._
 import org.bdgenomics.utils.misc.Logging
-import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
+import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -181,9 +185,9 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   @Args4jOption(required = false, name = "-filter_lq_reads", usage = "filter out reads containing max_lq_base of base with quality < min_quality", depends = { Array[String]("-tag_reads") })
   var filterLQReads = false
   @Args4jOption(required = false, name = "-min_quality", usage = "threshold for low quality base, defaulted as '?', representing Q30 for Illumina 1.8+ Phred+33", depends = { Array[String]("-tag_reads", "-filter_lq_reads") })
-  var minQuality = 30
+  var minQuality = 20
   @Args4jOption(required = false, name = "-max_lq_base", usage = "max acceptable low quality base for -filter_lq_reads, defaulted as 10", depends = { Array[String]("-tag_reads", "-filter_lq_reads") })
-  var maxLQBase = 10
+  var maxLQBase = 3
   @Args4jOption(required = false, name = "-trim_head", usage = "trim head",
     depends = { Array[String]("-tag_reads") })
   var trimHead = false
@@ -635,15 +639,21 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         None
       }
 
+      writeProfilingInfo(s"origin rdd.count ${outputRdd.rdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
+
       val atgxRdd = {
         val taggedRdd = outputRdd.rdd
           .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
+
+        writeProfilingInfo(s"ID tagged rdd.count ${taggedRdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
 
         val trimmedRdd =
           if (args.tenX)
             taggedRdd.mapPartitions(trimmer.get.trim)
           else
             taggedRdd
+
+        writeProfilingInfo(s"10x processed rdd.count ${taggedRdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
 
         val nucTrimmedRdd = if (args.trimHead) {
           trimmedRdd.rdd.mapPartitions(new AtgxReadsNucTrimmer().trimHead(_, args.tenX))
@@ -654,6 +664,8 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         } else {
           trimmedRdd
         }
+
+        writeProfilingInfo(s"ncTrimmed rdd.count ${nucTrimmedRdd.rdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
 
         // currently support Illumina 1.8+ Phred+33 scheme
         val minQ = args.minQuality + 33
@@ -676,6 +688,8 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           else
             nucTrimmedRdd
 
+        writeProfilingInfo(s"quality filtered rdd.count ${qualRdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
+
         val maxN = args.maxNCount
         val filteredRdd =
           if (args.filterN) {
@@ -696,17 +710,23 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
             qualRdd
           }
 
+        writeProfilingInfo(s"N-base filtered rdd.count ${filteredRdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
+
         val reassnRdd =
           if (args.randAssignN)
             filteredRdd.mapPartitions(new AtgxReadsRandNucAssigner().assign(_))
           else
             filteredRdd
 
+        writeProfilingInfo(s"N-base randomly assigned rdd.count ${reassnRdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
+
         val coldupRdd =
           if (args.colDupReads)
             new AtgxReadsDupCollapse().collapse(reassnRdd)
           else
             reassnRdd
+
+        writeProfilingInfo(s"duplication collapsed rdd.count ${coldupRdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
 
         val retRdd =
           if (args.filterLCReads) {
@@ -727,6 +747,8 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           } else {
             coldupRdd
           }
+
+        writeProfilingInfo(s"low complexity filtered rdd.count ${retRdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
 
         retRdd
       }
@@ -755,5 +777,16 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
 
   private def createKnownSnpsTable(sc: SparkContext): SnpTable = {
     Option(args.knownSnpsFile).fold(SnpTable())(f => SnpTable(sc.loadVariants(f)))
+  }
+
+  private def writeProfilingInfo(c: String, path: String, config: String): Unit = {
+    val conf = new Configuration
+    conf.addResource(new Path(config))
+    val fs: FileSystem = FileSystem.get(conf)
+
+    val profileF = new BufferedWriter(new OutputStreamWriter(
+      fs.create(new Path(path), true)))
+    profileF.write(c)
+    profileF.close()
   }
 }
