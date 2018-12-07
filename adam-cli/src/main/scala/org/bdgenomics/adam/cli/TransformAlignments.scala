@@ -639,13 +639,13 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         None
       }
 
-      writeProfilingInfo(s"origin rdd.count ${outputRdd.rdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
+      writeProfilingInfo(s"origin rdd.count ${outputRdd.rdd.count}", s"${args.outputPath}_stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
 
       val atgxRdd = {
         val taggedRdd = outputRdd.rdd
           .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
 
-        writeProfilingInfo(s"ID tagged rdd.count ${taggedRdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
+        writeProfilingInfo(s"ID tagged rdd.count ${taggedRdd.count}", s"${args.outputPath}_stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
 
         val trimmedRdd =
           if (args.tenX)
@@ -653,7 +653,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           else
             taggedRdd
 
-        writeProfilingInfo(s"10x processed rdd.count ${taggedRdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
+        writeProfilingInfo(s"10x processed rdd.count ${taggedRdd.count}", s"${args.outputPath}_stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
 
         val nucTrimmedRdd = if (args.trimHead) {
           trimmedRdd.rdd.mapPartitions(new AtgxReadsNucTrimmer().trimHead(_, args.tenX))
@@ -665,7 +665,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           trimmedRdd
         }
 
-        writeProfilingInfo(s"ncTrimmed rdd.count ${nucTrimmedRdd.rdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
+        writeProfilingInfo(s"ncTrimmed rdd.count ${nucTrimmedRdd.rdd.count}", s"${args.outputPath}_stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
 
         // currently support Illumina 1.8+ Phred+33 scheme
         val minQ = args.minQuality + 33
@@ -688,7 +688,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           else
             nucTrimmedRdd
 
-        writeProfilingInfo(s"quality filtered rdd.count ${qualRdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
+        writeProfilingInfo(s"quality filtered rdd.count ${qualRdd.count}", s"${args.outputPath}_stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
 
         val maxN = args.maxNCount
         val filteredRdd =
@@ -710,7 +710,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
             qualRdd
           }
 
-        writeProfilingInfo(s"N-base filtered rdd.count ${filteredRdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
+        writeProfilingInfo(s"N-base filtered rdd.count ${filteredRdd.count}", s"${args.outputPath}_stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
 
         val reassnRdd =
           if (args.randAssignN)
@@ -718,7 +718,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           else
             filteredRdd
 
-        writeProfilingInfo(s"N-base randomly assigned rdd.count ${reassnRdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
+        writeProfilingInfo(s"N-base randomly assigned rdd.count ${reassnRdd.count}", s"${args.outputPath}_stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
 
         val coldupRdd =
           if (args.colDupReads)
@@ -726,7 +726,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           else
             reassnRdd
 
-        writeProfilingInfo(s"duplication collapsed rdd.count ${coldupRdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
+        writeProfilingInfo(s"duplication collapsed rdd.count ${coldupRdd.count}", s"${args.outputPath}_stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
 
         val retRdd =
           if (args.filterLCReads) {
@@ -748,7 +748,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
             coldupRdd
           }
 
-        writeProfilingInfo(s"low complexity filtered rdd.count ${retRdd.count}", s"${args.outputPath}/stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
+        writeProfilingInfo(s"low complexity filtered rdd.count ${retRdd.count}", s"${args.outputPath}_stats", "/usr/local/hadoop/etc/hadoop/core-site.xml")
 
         retRdd
       }
