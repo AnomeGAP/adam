@@ -645,12 +645,13 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           else
             taggedRdd
 
+        val tenX = args.tenX
         val nucTrimmedRdd = if (args.trimHead) {
-          trimmedRdd.rdd.mapPartitions(new AtgxReadsNucTrimmer().trimHead(_, args.tenX))
+          trimmedRdd.rdd.mapPartitions(new AtgxReadsNucTrimmer().trimHead(_, tenX))
         } else if (args.trimTail) {
           trimmedRdd.rdd.mapPartitions(new AtgxReadsNucTrimmer().trimTail)
         } else if (args.trimBoth) {
-          trimmedRdd.rdd.mapPartitions(new AtgxReadsNucTrimmer().trimBoth(_, args.tenX))
+          trimmedRdd.rdd.mapPartitions(new AtgxReadsNucTrimmer().trimBoth(_, tenX))
         } else {
           trimmedRdd
         }
@@ -738,7 +739,8 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
       import AtgxTransformAlignments._
       val disableSVDup = args.disableSVDup
       val dict = mkPosBinIndices(sd)
-      val rdd = outputRdd.rdd
+      val rdd = outputRdd
+        .rdd
         .mapPartitions(new AtgxTransformAlignments().transform(sd, _, disableSVDup))
         .repartitionAndSortWithinPartitions(new NewPosBinPartitioner(dict))
         .map(_._2)
