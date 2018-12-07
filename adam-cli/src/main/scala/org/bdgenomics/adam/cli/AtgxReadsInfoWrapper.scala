@@ -1,10 +1,5 @@
 package org.bdgenomics.adam.cli
 
-import org.apache.spark.TaskContext
-import org.bdgenomics.formats.avro.AlignmentRecord
-
-import scala.collection.mutable.HashSet
-
 
 object AtgxReadsInfoParser {
   def parseFromName(nameStr: String): (String, AtgxReadsInfoWrapper) = {
@@ -40,30 +35,30 @@ class AtgxReadsInfoWrapper {
   }
 
   override def toString: String = {
-    s" ${"%10d".format(_ID)}#${"%10d".format(_barcode)}#${_SN}"
+    s" ${"%010d".format(_ID)}#${"%010d".format(_barcode)}#${_SN}"
   }
 
   def setID(newID: Long): Unit = {
     _ID = newID
   }
 
-  def getID(): Long = {
+  def getID: Long = {
     _ID
   }
 
-  def setBarcode(newBarcode: Int)= {
+  def setBarcode(newBarcode: Int): Unit = {
     _barcode = newBarcode
   }
 
-  def getBarcode(): Int = {
+  def getBarcode: Int = {
     _barcode
   }
 
-  def setSN(newSN: String)= {
+  def setSN(newSN: String): Unit = {
     _SN = newSN
   }
 
-  def getSN(): String = {
+  def getSN: String = {
     _SN
   }
 }
