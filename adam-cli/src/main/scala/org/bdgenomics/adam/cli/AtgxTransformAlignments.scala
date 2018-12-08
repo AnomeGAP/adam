@@ -129,8 +129,8 @@ class AtgxTransformAlignments {
     val refIndexMap = sd.records.map(x => (x.name, "%05d".format(x.referenceIndex.get))).toMap
     val r = new scala.util.Random // divide unmapped reads equally via random numbers
     val prewords = Seq("chrU_", "chrUn_", "chrEBV")
-    val sufwords = Seq("_decoy", "_random", "_hap")
-    val conwords = Seq("GL000", "NC_007605", "hs37d5")
+    val sufwords = Seq("_decoy", "_random")
+    val conwords = Seq("GL000", "NC_007605", "hs37d5", "_hap")
 
     iter.flatMap[(String, AlignmentRecord)](x => {
       if (x.getReadMapped == false) { // unmapped reads
