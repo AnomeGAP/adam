@@ -1,7 +1,7 @@
 package org.bdgenomics.adam.cli
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.fs.{ FileSystem, Path }
 import org.apache.spark.Partitioner
 import org.bdgenomics.adam.models.SequenceDictionary
 import org.bdgenomics.formats.avro.AlignmentRecord
@@ -130,7 +130,7 @@ class AtgxTransformAlignments {
     val r = new scala.util.Random // divide unmapped reads equally via random numbers
     val prewords = Seq("chrU_", "chrUn_", "chrEBV")
     val sufwords = Seq("_decoy", "_random", "_hap")
-    val conwords = Seq("GL000", "NC_007605", "hs37d5")
+    val conwords = Seq("GL000", "NC_007605", "hs37d5", "_hap")
 
     iter.flatMap[(String, AlignmentRecord)](x => {
       if (x.getReadMapped == false) { // unmapped reads
@@ -139,16 +139,15 @@ class AtgxTransformAlignments {
       } else {
         val contigName = x.getContigName
         if (!prewords.exists(contigName.startsWith) &&
-            !sufwords.exists(contigName.endsWith) &&
-            !conwords.exists(contigName.contains)) { // filter out the unused records
+          !sufwords.exists(contigName.endsWith) &&
+          !conwords.exists(contigName.contains)) { // filter out the unused records
           val posBin = scala.math.floor(x.getStart / partitionSize).toInt
           val paddingStart = "%09d".format(x.getStart.toInt)
           val ci = refIndexMap(contigName)
 
           if (contigName.startsWith("HLA") || contigName.endsWith("alt")) {
             Array((ci + ">" + contigName + "_" + "%05d".format(posBin) + "=" + paddingStart, x))
-          }
-          else {
+          } else {
             // make duplication of the following cases: X-DISCORDANT OR X-SOFTCLIP
             if (!DisableSVDup) {
               if (x.getCigar.contains("S") || x.getProperPair == false) {
