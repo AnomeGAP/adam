@@ -8,7 +8,7 @@ class AtgxReadsNucTrimmer {
       val name = record.getReadName
       val (_, iw) = AtgxReadsInfoParser.parseFromName(name)
       // use readId to identify read1 read2
-      if ((iw.getID() & 0x1) == 0) {
+      if ((iw.getID & 0x1) == 0) {
         if (tenX) record else trimHeadN(record)
       } else {
         trimHeadN(record)
@@ -25,7 +25,7 @@ class AtgxReadsNucTrimmer {
       val name = record.getReadName
       val (_, iw) = AtgxReadsInfoParser.parseFromName(name)
       // use readId to identify read1 read2
-      if ((iw.getID() & 0x1) == 0) {
+      if ((iw.getID & 0x1) == 0) {
         if (tenX) trimTailN(record) else (trimHeadN _ andThen trimTailN)(record)
       } else {
         (trimHeadN _ andThen trimTailN)(record)
