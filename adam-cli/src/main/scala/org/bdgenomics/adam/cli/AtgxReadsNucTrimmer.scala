@@ -13,11 +13,13 @@ class AtgxReadsNucTrimmer {
       } else {
         trimHeadN(record)
       }
+    }.filter {
+      _.getSequence.nonEmpty
     }
   }
 
   def trimTail(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
-    iter.toList.map(trimTailN).toIterator
+    iter.map(trimTailN).filter(_.getSequence.nonEmpty)
   }
 
   def trimBoth(iter: Iterator[AlignmentRecord], tenX: Boolean): Iterator[AlignmentRecord] = {
@@ -30,6 +32,8 @@ class AtgxReadsNucTrimmer {
       } else {
         (trimHeadN _ andThen trimTailN)(record)
       }
+    }.filter { i =>
+      i.getSequence.nonEmpty
     }
   }
 
