@@ -5,8 +5,6 @@ import org.bdgenomics.adam.cli.Utils.reverseComplementary
 
 import scala.collection.mutable.ListBuffer
 
-import scala.collection.mutable.ListBuffer
-
 class AtgxReadsAdapterTrimmer {
   def trim(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
     val (it1, it2) = iter.duplicate
@@ -23,46 +21,61 @@ class AtgxReadsAdapterTrimmer {
     // the reason to use A is A has higher precision in Illumina 2-color chemistry
     val read1APos = read1.map { record =>
       val seq = record.getSequence
-      val dist = calcRelativeDist(seq, 'A')
-
       val firstAToHeadDist = seq.indexOf('A')
 
-      dist -> firstAToHeadDist
+      if (firstAToHeadDist == -1) {
+        None
+      } else {
+        Some(calcRelativeDist(seq, 'A') -> firstAToHeadDist)
+      }
     }
 
     val read2APos = read2.map { record =>
       val rcSeq = reverseComplementary(record.getSequence)
-      val dist = calcRelativeDist(rcSeq, 'A')
-      val lastAToEndDist = rcSeq.length - rcSeq.lastIndexOf('A') - 1
-
-      dist -> lastAToEndDist
+      val lastIdxOfA = rcSeq.lastIndexOf('A')
+      if (lastIdxOfA == -1) {
+        None
+      } else {
+        val lastAToEndDist = rcSeq.length - lastIdxOfA - 1
+        Some(calcRelativeDist(rcSeq, 'A') -> lastAToEndDist)
+      }
     }
 
     val (overlapLen1, overlapLen2) = (read1APos zip read2APos map {
-      case (r1APos, r2APos) =>
+      case (Some(r1APos), Some(r2APos)) => {
         val common = longestCommonSubLists(r1APos._1, r2APos._1)
         r1APos._2 + common.sum + r2APos._2
+      }
+      case _ => 0
     }).duplicate
 
     it2 zip (overlapLen1 ++ overlapLen2) map {
       case (record, len) =>
-        val newSeq = new String(record.getSequence.substring(0, len))
-        val newQuality = new String(record.getQual.substring(0, len))
-        record.setSequence(newSeq)
-        record.setQual(newQuality)
+        if (len == 0) {
+          record
+        } else {
+          val newSeq = new String(record.getSequence.substring(0, len))
+          val newQuality = new String(record.getQual.substring(0, len))
+          record.setSequence(newSeq)
+          record.setQual(newQuality)
 
-        record
+          record
+        }
     }
   }
 
   private def calcRelativeDist(seq: String, nuc: Char): List[Int] = {
     val idxSeq = seq.toList.zipWithIndex.filter(_._1 == nuc).map(_._2)
 
-    idxSeq.tail.foldLeft(ListBuffer[Int]() -> idxSeq.head) {
-      case ((result, previous), current) =>
-        val diff = current - previous
-        (result += diff) -> current
-    }._1.toList
+    if (idxSeq.nonEmpty) {
+      idxSeq.tail.foldLeft(ListBuffer[Int]() -> idxSeq.head) {
+        case ((result, previous), current) =>
+          val diff = current - previous
+          (result += diff) -> current
+      }._1.toList
+    } else {
+      List.empty
+    }
   }
 
   // find longest common sublists with overlap is negative:
