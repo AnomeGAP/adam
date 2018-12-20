@@ -704,23 +704,11 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           else
             filteredRdd
 
-        val coldupRdd =
-          if (args.colDupReads)
-            new AtgxReadsDupCollapse().collapse(reassnRdd)
-          else
-            reassnRdd
-
-        val adapterTrimmedRdd =
-          if (args.trimAdapter)
-            coldupRdd.mapPartitions(new AtgxReadsAdapterTrimmer().trim(_))
-          else
-            coldupRdd
-
-        val retRdd =
+        val lcFilteredRdd =
           if (args.filterLCReads) {
             // generate and save LC filtered AlignmentRecord entry
             AlignmentRecordRDD(
-              adapterTrimmedRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true)),
+              reassnRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true)),
               outputRdd.sequences,
               outputRdd.recordGroups,
               outputRdd.processingSteps)
@@ -731,10 +719,22 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
                 false
               )
 
-            adapterTrimmedRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false))
+            reassnRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false))
           } else {
-            adapterTrimmedRdd
+            reassnRdd
           }
+
+        val adapterTrimmedRdd =
+          if (args.trimAdapter)
+            lcFilteredRdd.mapPartitions(new AtgxReadsAdapterTrimmer().trim(_))
+          else
+            lcFilteredRdd
+
+        val retRdd =
+          if (args.colDupReads)
+            new AtgxReadsDupCollapse().collapse(adapterTrimmedRdd)
+          else
+            adapterTrimmedRdd
 
         retRdd
       }
