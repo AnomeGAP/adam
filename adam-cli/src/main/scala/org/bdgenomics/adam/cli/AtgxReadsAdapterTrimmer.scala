@@ -24,7 +24,7 @@ class AtgxReadsAdapterTrimmer {
           val overlapLen = (read1APos, read2APos) match {
             case (Some(r1APos), Some(r2APos)) => {
               val common = longestCommonSubLists(r1APos._1, r2APos._1)
-              Some(r1APos._2 + common.sum + r2APos._2)
+              if (common.isEmpty) None else Some(r1APos._2 + common.sum + r2APos._2)
             }
             case _ => None
           }
