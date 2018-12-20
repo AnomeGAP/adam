@@ -24,13 +24,20 @@ class AtgxReadsAdapterTrimmer {
           val overlapLen = (read1APos, read2APos) match {
             case (Some(r1APos), Some(r2APos)) => {
               val common = longestCommonSubLists(r1APos._1, r2APos._1)
-              if (common.isEmpty) None else Some(r1APos._2 + common.sum + r2APos._2)
+              if (common.isEmpty) None else Some(r1APos._2 + common.sum + r2APos._2 + 1)
             }
             case _ => None
           }
 
-          overlapLen.map { len => List(trimAdapter(record, len), trimAdapter(another, len)) }
-            .getOrElse { List(record, another) }
+          overlapLen.map { len =>
+            val trimmedRecord = trimAdapter(record, len)
+            val trimmedAnother = trimAdapter(another, len)
+            if (trimmedRecord.getSequence.compareTo(reverseComplementary(trimmedAnother.getSequence)) == 0)
+              List(trimmedRecord, trimmedAnother)
+            else
+              List(record, another)
+          }
+          .getOrElse { List(record, another) }
         }
         .getOrElse {
           unpairedReads.put(readId, record)
