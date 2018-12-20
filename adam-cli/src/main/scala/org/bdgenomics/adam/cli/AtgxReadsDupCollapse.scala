@@ -1,6 +1,7 @@
 package org.bdgenomics.adam.cli
 
 import org.apache.spark.rdd.RDD
+import org.bdgenomics.adam.cli.Utils.reverseComplementary
 import org.bdgenomics.formats.avro.AlignmentRecord
 import scala.collection.mutable.ArrayBuffer
 
@@ -111,25 +112,6 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
   def decodeQual(item: AlignmentRecord): (String, Array[Int]) = {
     (item.getQual.map(x => { qLevel(x.toInt - qualMin).toChar }),
       item.getQual.map(x => { dLevel(x.toInt - qualMin) }).toArray)
-  }
-
-  def reverseComplementary(s: String): String = {
-    val complementary = Map('A' -> 'T', 'T' -> 'A', 'C' -> 'G', 'G' -> 'C')
-    var i = 0
-    var j = s.length - 1
-    val c = s.toCharArray
-
-    while (i < j) {
-      val temp = c(i)
-      c(i) = complementary(c(j))
-      c(j) = complementary(temp)
-      i = i + 1
-      j = j - 1
-    }
-
-    if (s.length % 2 != 0) c(i) = complementary(c(i))
-
-    String.valueOf(c)
   }
 }
 
