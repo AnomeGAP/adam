@@ -3,7 +3,7 @@ package org.bdgenomics.adam.cli
 import org.bdgenomics.formats.avro.AlignmentRecord
 import org.bdgenomics.adam.cli.Utils.reverseComplementary
 
-import scala.collection.mutable.{HashMap, ListBuffer}
+import scala.collection.mutable.{ HashMap, ListBuffer }
 
 class AtgxReadsAdapterTrimmer {
   def trim(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
@@ -37,13 +37,13 @@ class AtgxReadsAdapterTrimmer {
             else
               List(record, another)
           }
-          .getOrElse { List(record, another) }
+            .getOrElse { List(record, another) }
         }
         .getOrElse {
           unpairedReads.put(readId, record)
-          List.empty
-        } ++ unpairedReads.values
-    }
+          List[AlignmentRecord]()
+        }
+    } ++ unpairedReads.values
   }
 
   private def getRead1APos(record: AlignmentRecord): Option[(List[Int], Int)] = {
