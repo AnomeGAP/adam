@@ -195,6 +195,8 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   var trimBoth = false
   @Args4jOption(required = false, name = "-trim_adapter", usage = "trim adapter")
   var trimAdapter = false
+  @Args4jOption(required = false, name = "-trim_one", usage = "trim one bp in head and tail")
+  var trimOne = false
   var command: String = null
 }
 
@@ -631,7 +633,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         throw new Exception("Paired-end input is limited with partition number " + args.tagPartNum)
       }
 
-      val trimmer = if (args.tenX) {
+      val tenXBarcodeTrimmer = if (args.tenX) {
         Some(new AtgxReadsBarcodeTrimmer(sc, args.barcodeLen, args.nMerLen, args.barcodeWhitelist))
       } else {
         None
@@ -641,21 +643,27 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         val taggedRdd = outputRdd.rdd
           .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
 
-        val trimmedRdd =
+        val barcodeTrimmedRdd =
           if (args.tenX)
-            taggedRdd.mapPartitions(trimmer.get.trim)
+            taggedRdd.mapPartitions(tenXBarcodeTrimmer.get.trim)
           else
             taggedRdd
 
+        val trimOneRdd =
+          if (args.trimOne)
+            barcodeTrimmedRdd.mapPartitions(new AtgxReadsHeadTailTrimmer().trim)
+          else
+            barcodeTrimmedRdd
+
         val tenX = args.tenX
         val nucTrimmedRdd = if (args.trimHead) {
-          trimmedRdd.mapPartitions(new AtgxReadsNucTrimmer().trimHead(_, tenX))
+          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimHead(_, tenX))
         } else if (args.trimTail) {
-          trimmedRdd.mapPartitions(new AtgxReadsNucTrimmer().trimTail)
+          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimTail)
         } else if (args.trimBoth) {
-          trimmedRdd.mapPartitions(new AtgxReadsNucTrimmer().trimBoth(_, tenX))
+          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimBoth(_, tenX))
         } else {
-          trimmedRdd
+          trimOneRdd
         }
 
         // currently support Illumina 1.8+ Phred+33 scheme
@@ -704,11 +712,17 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           else
             filteredRdd
 
+        val coldupRdd =
+          if (args.colDupReads)
+            new AtgxReadsDupCollapse().collapse(reassnRdd)
+          else
+            reassnRdd
+
         val lcFilteredRdd =
           if (args.filterLCReads) {
             // generate and save LC filtered AlignmentRecord entry
             AlignmentRecordRDD(
-              reassnRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true)),
+              coldupRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true)),
               outputRdd.sequences,
               outputRdd.recordGroups,
               outputRdd.processingSteps)
@@ -719,29 +733,23 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
                 false
               )
 
-            reassnRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false))
+            coldupRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false))
           } else {
-            reassnRdd
+            coldupRdd
           }
 
-        val adapterTrimmedRdd =
+        val retRdd =
           if (args.trimAdapter)
             lcFilteredRdd.mapPartitions(new AtgxReadsAdapterTrimmer().trim(_))
           else
             lcFilteredRdd
-
-        val retRdd =
-          if (args.colDupReads)
-            new AtgxReadsDupCollapse().collapse(adapterTrimmedRdd)
-          else
-            adapterTrimmedRdd
 
         retRdd
       }
 
       AlignmentRecordRDD(atgxRdd, outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
         .save(args, isSorted = args.sortReads || args.sortLexicographically)
-      trimmer.map(_.statistics())
+      tenXBarcodeTrimmer.map(_.statistics())
     } else if (args.atgxTransform) {
       import AtgxTransformAlignments._
       val disableSVDup = args.disableSVDup
