@@ -193,6 +193,9 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   @Args4jOption(required = false, name = "-trim_both", usage = "trim both",
     depends = { Array[String]("-tag_reads") })
   var trimBoth = false
+  @Args4jOption(required = false, name = "-min_length", usage = "read min length",
+    depends = { Array[String]("-tag_reads") })
+  var minLen = 85
   @Args4jOption(required = false, name = "-trim_adapter", usage = "trim adapter")
   var trimAdapter = false
   @Args4jOption(required = false, name = "-trim_one", usage = "trim one bp in head and tail")
@@ -656,12 +659,13 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
             barcodeTrimmedRdd
 
         val tenX = args.tenX
+        val minLen = args.minLen
         val nucTrimmedRdd = if (args.trimHead) {
-          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimHead(_, tenX))
+          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimHead(_, tenX, minLen))
         } else if (args.trimTail) {
-          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimTail)
+          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimTail(_, minLen))
         } else if (args.trimBoth) {
-          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimBoth(_, tenX))
+          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimBoth(_, tenX, minLen))
         } else {
           trimOneRdd
         }

@@ -3,7 +3,7 @@ package org.bdgenomics.adam.cli
 import org.bdgenomics.formats.avro.AlignmentRecord
 
 class AtgxReadsNucTrimmer {
-  def trimHead(iter: Iterator[AlignmentRecord], tenX: Boolean): Iterator[AlignmentRecord] = {
+  def trimHead(iter: Iterator[AlignmentRecord], tenX: Boolean, minLen: Int): Iterator[AlignmentRecord] = {
     iter.map { record =>
       val name = record.getReadName
       val (_, iw) = AtgxReadsInfoParser.parseFromName(name)
@@ -13,16 +13,21 @@ class AtgxReadsNucTrimmer {
       } else {
         trimHeadN(record)
       }
-    }.filter {
-      _.getSequence.nonEmpty
+    }.filter { i =>
+      val seq = i.getSequence
+      seq.nonEmpty && seq.length >= minLen
     }
   }
 
-  def trimTail(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
-    iter.map(trimTailN).filter(_.getSequence.nonEmpty)
+  def trimTail(iter: Iterator[AlignmentRecord], minLen: Int): Iterator[AlignmentRecord] = {
+    iter.map(trimTailN)
+      .filter { i =>
+        val seq = i.getSequence
+        seq.nonEmpty && seq.length >= minLen
+      }
   }
 
-  def trimBoth(iter: Iterator[AlignmentRecord], tenX: Boolean): Iterator[AlignmentRecord] = {
+  def trimBoth(iter: Iterator[AlignmentRecord], tenX: Boolean, minLen: Int): Iterator[AlignmentRecord] = {
     iter.map { record =>
       val name = record.getReadName
       val (_, iw) = AtgxReadsInfoParser.parseFromName(name)
@@ -33,7 +38,8 @@ class AtgxReadsNucTrimmer {
         (trimHeadN _ andThen trimTailN)(record)
       }
     }.filter { i =>
-      i.getSequence.nonEmpty
+      val seq = i.getSequence
+      seq.nonEmpty && seq.length >= minLen
     }
   }
 
