@@ -2,7 +2,7 @@ package org.bdgenomics.adam.cli
 
 import org.bdgenomics.formats.avro.AlignmentRecord
 
-class AtgxReadsHeadTailTrimmer {
+class AtgxReadsHeadTailTrimmer extends Serializable {
   def trim(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
     iter.map { record =>
       val len = record.getSequence.length
