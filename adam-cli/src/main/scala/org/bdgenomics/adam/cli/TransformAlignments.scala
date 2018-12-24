@@ -200,6 +200,8 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   var trimAdapter = false
   @Args4jOption(required = false, name = "-trim_one", usage = "trim one bp in head and tail")
   var trimOne = false
+  @Args4jOption(required = false, name = "-trim_poly_g", usage = "trim poly G")
+  var trimPolyG = false
   var command: String = null
 }
 
@@ -652,11 +654,31 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           else
             taggedRdd
 
+        // currently support Illumina 1.8+ Phred+33 scheme
+        val minQ = args.minQuality + 33
+        val maxLQ = args.maxLQBase
+        val qualRdd =
+          if (args.filterLQReads) {
+            AlignmentRecordRDD(
+              barcodeTrimmedRdd.mapPartitions(new AtgxReadsQualFilter().filterReads(_, minQ, maxLQ, true)),
+              outputRdd.sequences,
+              outputRdd.recordGroups,
+              outputRdd.processingSteps)
+              .saveAsParquet(args.outputPath + "_LQfiltered",
+                128 * 1024 * 1024,
+                1 * 1024 * 1024,
+                CompressionCodecName.GZIP,
+                false)
+
+            barcodeTrimmedRdd.mapPartitions(new AtgxReadsQualFilter().filterReads(_, minQ, maxLQ, false))
+          } else
+            barcodeTrimmedRdd
+
         val trimOneRdd =
           if (args.trimOne)
-            barcodeTrimmedRdd.mapPartitions(new AtgxReadsHeadTailTrimmer().trim)
+            qualRdd.mapPartitions(new AtgxReadsHeadTailTrimmer().trim)
           else
-            barcodeTrimmedRdd
+            qualRdd
 
         val tenX = args.tenX
         val minLen = args.minLen
@@ -670,32 +692,12 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           trimOneRdd
         }
 
-        // currently support Illumina 1.8+ Phred+33 scheme
-        val minQ = args.minQuality + 33
-        val maxLQ = args.maxLQBase
-        val qualRdd =
-          if (args.filterLQReads) {
-            AlignmentRecordRDD(
-              nucTrimmedRdd.mapPartitions(new AtgxReadsQualFilter().filterReads(_, minQ, maxLQ, true)),
-              outputRdd.sequences,
-              outputRdd.recordGroups,
-              outputRdd.processingSteps)
-              .saveAsParquet(args.outputPath + "_LQfiltered",
-                128 * 1024 * 1024,
-                1 * 1024 * 1024,
-                CompressionCodecName.GZIP,
-                false)
-
-            nucTrimmedRdd.mapPartitions(new AtgxReadsQualFilter().filterReads(_, minQ, maxLQ, false))
-          } else
-            nucTrimmedRdd
-
         val maxN = args.maxNCount
         val filteredRdd =
           if (args.filterN) {
             // generate and save N filtered AlignmentRecord entry
             AlignmentRecordRDD(
-              qualRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, true)),
+              nucTrimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, true)),
               outputRdd.sequences,
               outputRdd.recordGroups,
               outputRdd.processingSteps)
@@ -705,9 +707,9 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
                 CompressionCodecName.GZIP,
                 false)
 
-            qualRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, false))
+            nucTrimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, false))
           } else {
-            qualRdd
+            nucTrimmedRdd
           }
 
         val reassnRdd =
@@ -716,11 +718,23 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           else
             filteredRdd
 
+        val adapterTrimmedRdd =
+          if (args.trimAdapter)
+            reassnRdd.mapPartitions(new AtgxReadsAdapterTrimmer().trim(_))
+          else
+            reassnRdd
+
+        val polyGTrimmedRdd =
+          if (args.trimAdapter)
+            adapterTrimmedRdd.mapPartitions(new AtgxReadsAdapterTrimmer().trim(_))
+          else
+            adapterTrimmedRdd
+
         val lcFilteredRdd =
           if (args.filterLCReads) {
             // generate and save LC filtered AlignmentRecord entry
             AlignmentRecordRDD(
-              reassnRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true)),
+              polyGTrimmedRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true)),
               outputRdd.sequences,
               outputRdd.recordGroups,
               outputRdd.processingSteps)
@@ -731,22 +745,16 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
                 false
               )
 
-            reassnRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false))
+            polyGTrimmedRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false))
           } else {
-            reassnRdd
+            polyGTrimmedRdd
           }
-
-        val adapterTrimmedRdd =
-          if (args.trimAdapter)
-            lcFilteredRdd.mapPartitions(new AtgxReadsAdapterTrimmer().trim(_))
-          else
-            lcFilteredRdd
 
         val retRdd =
           if (args.colDupReads)
-            new AtgxReadsDupCollapse().collapse(adapterTrimmedRdd)
+            new AtgxReadsDupCollapse().collapse(lcFilteredRdd)
           else
-            adapterTrimmedRdd
+            lcFilteredRdd
 
         retRdd
       }
