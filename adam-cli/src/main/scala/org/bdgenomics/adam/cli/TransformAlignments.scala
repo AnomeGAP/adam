@@ -730,11 +730,13 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           else
             adapterTrimmedRdd
 
+        val lenFilteredRdd = polyGTrimmedRdd.mapPartitions(new AtgxReadsLenFilter().filterLen(_, minLen))
+
         val lcFilteredRdd =
           if (args.filterLCReads) {
             // generate and save LC filtered AlignmentRecord entry
             AlignmentRecordRDD(
-              polyGTrimmedRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true)),
+              lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true)),
               outputRdd.sequences,
               outputRdd.recordGroups,
               outputRdd.processingSteps)
@@ -745,9 +747,9 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
                 false
               )
 
-            polyGTrimmedRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false))
+            lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false))
           } else {
-            polyGTrimmedRdd
+            lenFilteredRdd
           }
 
         val retRdd =
