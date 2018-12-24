@@ -725,8 +725,8 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
             reassnRdd
 
         val polyGTrimmedRdd =
-          if (args.trimAdapter)
-            adapterTrimmedRdd.mapPartitions(new AtgxReadsAdapterTrimmer().trim(_))
+          if (args.trimPolyG)
+            adapterTrimmedRdd.mapPartitions(new AtgxReadsPolyGTrimmer().trim(_))
           else
             adapterTrimmedRdd
 
