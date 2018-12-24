@@ -19,8 +19,11 @@ class AtgxReadsAdapterTrimmer {
           unpairedReads.remove(anotherPairId)
           // use the position of A to represent the sequence
           // the reason to use A is A has higher precision in Illumina 2-color chemistry
-          val read1APos = getRead1APos(record)
-          val read2APos = getRead2APos(another)
+          val (read1APos, read2APos) = if (readId < anotherPairId) {
+            getRead1APos(record) -> getRead2APos(another)
+          } else {
+            getRead1APos(another) -> getRead2APos(record)
+          }
           val overlapLen = (read1APos, read2APos) match {
             case (Some(r1APos), Some(r2APos)) => {
               val common = longestCommonSubLists(r1APos._1, r2APos._1)
