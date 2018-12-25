@@ -41,7 +41,7 @@ class AtgxReadsAdapterTrimmer {
             if (len > record.getSequence.length / 3) {
               val trimmedRecord = trimAdapter(record, len)
               val trimmedAnother = trimAdapter(another, len)
-              if (trimmedRecord.getSequence.compareTo(reverseComplementary(trimmedAnother.getSequence)) == 0)
+              if (checkDiff(trimmedRecord.getSequence, trimmedAnother.getSequence))
                 List(trimmedRecord, trimmedAnother)
               else
                 List(record, another)
@@ -91,6 +91,21 @@ class AtgxReadsAdapterTrimmer {
     val ls2Tails = ls2.tails.toSet
 
     ls1Inits.intersect(ls2Tails).maxBy(_.length)
+  }
+
+  private def checkDiff(seq1: String, seq2: String, maxDiff: Int = 5): Boolean = {
+    val map = Map('A' -> 1, 'C' -> 2, 'T' -> 3, 'G' ->4)
+    val diff = seq1.toList zip seq2.toList count { case (c1, c2) =>
+        if ((map(c1) ^ map(c2)) == 0)
+          false
+        else
+          true
+    }
+
+    if (diff <= maxDiff)
+      true
+    else
+      false
   }
 
   private def trimAdapter(record: AlignmentRecord, len: Int): AlignmentRecord = {
