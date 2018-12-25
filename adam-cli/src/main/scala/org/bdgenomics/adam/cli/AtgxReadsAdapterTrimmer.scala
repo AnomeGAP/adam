@@ -20,24 +20,32 @@ class AtgxReadsAdapterTrimmer {
           // use the position of A to represent the sequence
           // the reason to use A is A has higher precision in Illumina 2-color chemistry
           val (read1APos, read2APos) = if (readId < anotherPairId) {
-            getRead1APos(record) -> getRead2APos(another)
+            getAPos(record.getSequence) -> getAPos(reverseComplementary(another.getSequence))
           } else {
-            getRead1APos(another) -> getRead2APos(record)
+            getAPos(another.getSequence) -> getAPos(reverseComplementary(record.getSequence))
           }
           val overlapLen = (read1APos, read2APos) match {
             case (Some(r1APos), Some(r2APos)) => {
               val common = longestCommonSubLists(r1APos._1, r2APos._1)
-              if (common.isEmpty) None else Some(r1APos._2 + common.sum + r2APos._2 + 1)
+              // the second condition is to make sure read1's prefix overlaps read2's postfix:
+              //               |----read 1----->
+              //         <-----read 2-------|
+              if (common.isEmpty || r1APos._3 < r2APos._3)
+                None
+              else Some(r1APos._2 + common.sum + r2APos._3 + 1)
             }
             case _ => None
           }
 
           overlapLen.map { len =>
-            val trimmedRecord = trimAdapter(record, len)
-            val trimmedAnother = trimAdapter(another, len)
-            if (trimmedRecord.getSequence.compareTo(reverseComplementary(trimmedAnother.getSequence)) == 0)
-              List(trimmedRecord, trimmedAnother)
-            else
+            if (len > record.getSequence.length / 3) {
+              val trimmedRecord = trimAdapter(record, len)
+              val trimmedAnother = trimAdapter(another, len)
+              if (trimmedRecord.getSequence.compareTo(reverseComplementary(trimmedAnother.getSequence)) == 0)
+                List(trimmedRecord, trimmedAnother)
+              else
+                List(record, another)
+            } else
               List(record, another)
           }
             .getOrElse { List(record, another) }
@@ -49,25 +57,15 @@ class AtgxReadsAdapterTrimmer {
     } ++ unpairedReads.values
   }
 
-  private def getRead1APos(record: AlignmentRecord): Option[(List[Int], Int)] = {
-    val seq = record.getSequence
+  private def getAPos(seq: String): Option[(List[Int], Int, Int)] = {
     val firstAToHeadDist = seq.indexOf('A')
+    val lastIdxOfA = seq.lastIndexOf('A')
 
     if (firstAToHeadDist == -1) {
       None
     } else {
-      Some(calcRelativeDist(seq, 'A') -> firstAToHeadDist)
-    }
-  }
-
-  private def getRead2APos(record: AlignmentRecord): Option[(List[Int], Int)] = {
-    val rcSeq = reverseComplementary(record.getSequence)
-    val lastIdxOfA = rcSeq.lastIndexOf('A')
-    if (lastIdxOfA == -1) {
-      None
-    } else {
-      val lastAToEndDist = rcSeq.length - lastIdxOfA - 1
-      Some(calcRelativeDist(rcSeq, 'A') -> lastAToEndDist)
+      val lastAToEndDist = seq.length - lastIdxOfA - 1
+      Some(calcRelativeDist(seq, 'A'), firstAToHeadDist, lastAToEndDist)
     }
   }
 
