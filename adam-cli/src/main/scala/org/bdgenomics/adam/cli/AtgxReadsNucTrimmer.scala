@@ -2,6 +2,8 @@ package org.bdgenomics.adam.cli
 
 import org.bdgenomics.formats.avro.AlignmentRecord
 
+import scala.annotation.tailrec
+
 class AtgxReadsNucTrimmer {
   def trimHead(iter: Iterator[AlignmentRecord], tenX: Boolean, minLen: Int): Iterator[AlignmentRecord] = {
     iter.map { record =>
@@ -66,7 +68,27 @@ class AtgxReadsNucTrimmer {
     record
   }
 
-  // TODO: not use replaceAll
-  private def trimH(seq: String): String = seq.replaceAll("^N*", "")
-  private def trimT(seq: String): String = seq.replaceAll("N*$", "")
+  private def trimH(seq: String): String = {
+    @tailrec
+    def aux(seq: String, idx: Int): String = {
+      if (seq.head == 'N')
+        aux(seq.tail, idx + 1)
+      else
+        seq
+    }
+
+    aux(seq, 0)
+  }
+
+  private def trimT(seq: String): String = {
+    @tailrec
+    def aux(seq: String, idx: Int): String = {
+      if (seq(idx) == 'N')
+        aux(new String(seq.substring(0, idx)), idx - 1)
+      else
+        seq
+    }
+
+    aux(seq, seq.length - 1)
+  }
 }
