@@ -3,7 +3,8 @@ package org.bdgenomics.adam.cli
 import org.bdgenomics.formats.avro.AlignmentRecord
 import org.bdgenomics.adam.cli.Utils.reverseComplementary
 
-import scala.collection.mutable.{ HashMap, ListBuffer }
+import scala.annotation.tailrec
+import scala.collection.mutable.{HashMap, ListBuffer}
 
 class AtgxReadsAdapterTrimmer {
   def trim(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
@@ -57,45 +58,68 @@ class AtgxReadsAdapterTrimmer {
     } ++ unpairedReads.values
   }
 
-  private def getAPos(seq: String): Option[(List[Int], Int, Int)] = {
-    val firstAToHeadDist = seq.indexOf('A')
-    val lastIdxOfA = seq.lastIndexOf('A')
+  private def getAPos(seq: String, nuc: Char = 'A'): Option[(List[Int], Int, Int)] = {
+    val dist = ListBuffer[Int]()
+    var idx = 0
+    var firstAIdx = -1
+    var lastAIdx = -1
+    var previousAIdx = -1
 
-    if (firstAToHeadDist == -1) {
+    seq.foreach { c =>
+      if (c == nuc) {
+        if (firstAIdx == -1) {
+          firstAIdx = idx
+        } else {
+          dist += (idx - previousAIdx)
+        }
+        previousAIdx = idx
+        lastAIdx = idx
+      }
+      idx += 1
+    }
+
+    if (firstAIdx != -1) {
+      Some((dist.toList, firstAIdx, seq.length - lastAIdx - 1))
+    } else {
       None
-    } else {
-      val lastAToEndDist = seq.length - lastIdxOfA - 1
-      Some(calcRelativeDist(seq, 'A'), firstAToHeadDist, lastAToEndDist)
     }
   }
 
-  private def calcRelativeDist(seq: String, nuc: Char): List[Int] = {
-    val idxSeq = seq.toList.zipWithIndex.filter(_._1 == nuc).map(_._2)
-
-    if (idxSeq.nonEmpty) {
-      idxSeq.tail.foldLeft(ListBuffer[Int]() -> idxSeq.head) {
-        case ((result, previous), current) =>
-          val diff = current - previous
-          (result += diff) -> current
-      }._1.toList
-    } else {
-      List.empty
-    }
-  }
-
-  // find longest common sublists with overlap is negative:
+  // find longest common sublists with overlap is negative or 0(perfectly overlap):
   //               |----read 1----->
   //         <-----read 2-------|
+  //
+  //               |----read 1----->
+  //               <----read 2-----|
   private def longestCommonSubLists(ls1: List[Int], ls2: List[Int]): List[Int] = {
-    val ls1Inits = ls1.inits.toSet
-    val ls2Tails = ls2.tails.toSet
+    val ls1Inits = ls1.inits.toList
+    val ls2Tails = ls2.tails.toList
 
-    ls1Inits.intersect(ls2Tails).maxBy(_.length)
+//    ls1Inits.intersect(ls2Tails).maxBy(_.length)
+    lcsAux(ls1Inits, ls2Tails)
+  }
+
+  @tailrec
+  private def lcsAux(ls1: List[List[Int]], ls2: List[List[Int]]): List[Int] = {
+    (ls1.headOption, ls2.headOption) match {
+      case (Some(h1), Some(h2)) => {
+        if (h1 == h2) {
+          h1
+        }
+        else {
+          if (h1.length >= h2.length)
+            lcsAux(ls1.tail, ls2)
+          else
+            lcsAux(ls1, ls2.tail)
+        }
+      }
+      case _ => List.empty
+    }
   }
 
   private def checkDiff(seq1: String, seq2: String, maxDiff: Int = 5): Boolean = {
     val map = Map('A' -> 1, 'C' -> 2, 'T' -> 3, 'G' ->4)
-    val diff = seq1.toList zip seq2.toList count { case (c1, c2) =>
+    val diff = seq1 zip seq2 count { case (c1, c2) =>
         if ((map(c1) ^ map(c2)) == 0)
           false
         else
