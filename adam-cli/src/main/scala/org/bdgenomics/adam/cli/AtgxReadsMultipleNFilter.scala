@@ -5,6 +5,7 @@ import org.bdgenomics.formats.avro.AlignmentRecord
 class AtgxReadsMultipleNFilter {
   def filterN(iter: Iterator[AlignmentRecord], maxN: Int, invFlag: Boolean): Iterator[AlignmentRecord] = {
     iter.filter { record =>
+      // TODO: use tailrec
       val nCount = record.getSequence.filter(_ == 'N').length
 
       if (!invFlag)

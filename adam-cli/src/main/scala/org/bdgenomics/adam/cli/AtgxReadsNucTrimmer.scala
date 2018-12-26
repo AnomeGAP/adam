@@ -66,6 +66,7 @@ class AtgxReadsNucTrimmer {
     record
   }
 
+  // TODO: not use replaceAll
   private def trimH(seq: String): String = seq.replaceAll("^N*", "")
   private def trimT(seq: String): String = seq.replaceAll("N*$", "")
 }
