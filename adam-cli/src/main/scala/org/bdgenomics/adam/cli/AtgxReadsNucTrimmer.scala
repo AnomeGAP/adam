@@ -71,7 +71,7 @@ class AtgxReadsNucTrimmer {
   private def trimH(seq: String): String = {
     @tailrec
     def aux(seq: String, idx: Int): String = {
-      if (seq.head == 'N')
+      if (seq.nonEmpty && seq.head == 'N')
         aux(seq.tail, idx + 1)
       else
         seq
@@ -83,7 +83,7 @@ class AtgxReadsNucTrimmer {
   private def trimT(seq: String): String = {
     @tailrec
     def aux(seq: String, idx: Int): String = {
-      if (seq(idx) == 'N')
+      if (idx >= 0 && seq(idx) == 'N')
         aux(new String(seq.substring(0, idx)), idx - 1)
       else
         seq
