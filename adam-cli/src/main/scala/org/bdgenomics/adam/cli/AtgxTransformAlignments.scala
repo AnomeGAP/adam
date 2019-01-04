@@ -10,29 +10,29 @@ import scala.collection.immutable
 
 object AtgxTransformAlignments {
   val stopwords = Seq("chrU_", "chrUn_", "chrEBV", "_decoy", "_random", "_hap", "NC_007605", "GL000", "hs37d5")
-
+  
   def mkPosBinIndices(sd: SequenceDictionary, partitionSize: Int = 1000000): Map[String, Int] = {
     val filteredContigNames = sd.records
       .filterNot(x => stopwords.exists(x.name.contains))
       .sortBy(x => x.referenceIndex.get)
       .map(x => {
-        if (x.name.startsWith("HLA-")) ("HLA", 0.toInt)
-        else if (x.name.endsWith("_alt")) ("alt", 0.toInt)
+        if (x.name.startsWith("HLA-")) ("HLA", 0)
+        else if (x.name.endsWith("_alt")) ("alt", 0)
         else (x.name, x.length.toInt)
       })
       .distinct // remove deduplication of 'HLA=0' and "alt=0"
 
     // duplicated reads => given-name_chromosome-index=num_bins
     // the num_bins = 0 stands for only one bin, 9M will created 10 bins (0-9)
-    val um = (0 to 24).map(i => ("X-UNMAPPED_%05d".format(i), 0.toInt))
-    val sc = (0 to 24).map(i => ("X-SOFTCLIP-OR-DISCORDANT_%05d".format(i), 9000000.toInt))
+    val um = (0 to 24).map(i => ("X-UNMAPPED@%05d".format(i), 0))
+    val sc = (0 to 24).map(i => ("X-SOFTCLIP-OR-DISCORDANT@%05d".format(i), 9000000))
 
     (filteredContigNames ++ um ++ sc)
       .flatMap(
         x => {
           val buf = scala.collection.mutable.ArrayBuffer.empty[String]
           for (numberOfPosBin <- 0 to scala.math.floor(x._2 / partitionSize).toInt) {
-            buf += x._1 + "_" + numberOfPosBin
+            buf += x._1 + "@" + numberOfPosBin
           }
           buf.iterator
         }
@@ -135,7 +135,7 @@ class AtgxTransformAlignments {
     iter.flatMap[(String, AlignmentRecord)](x => {
       if (x.getReadMapped == false) { // unmapped reads
         val randomBinNumber = 0 + r.nextInt((24 - 0) + 1) // range: 0-24
-        Array((">X-UNMAPPED_%05d_0".format(randomBinNumber), x)) // e.g., X-UNMAPPED_00015_0
+        Array((">X-UNMAPPED@%05d@0".format(randomBinNumber), x)) // e.g., X-UNMAPPED_00015_0
       } else {
         val contigName = x.getContigName
         if (!prewords.exists(contigName.startsWith) &&
@@ -146,18 +146,18 @@ class AtgxTransformAlignments {
           val ci = refIndexMap(contigName)
 
           if (contigName.startsWith("HLA") || contigName.endsWith("alt")) {
-            Array((ci + ">" + contigName + "_" + "%05d".format(posBin) + "=" + paddingStart, x))
+            Array((ci + ">" + contigName + "@" + "%05d".format(posBin) + "=" + paddingStart, x))
           } else {
             // make duplication of the following cases: X-DISCORDANT OR X-SOFTCLIP
             if (!DisableSVDup) {
               if (x.getCigar.contains("S") || x.getProperPair == false) {
                 val bin = x.getStart / binSizeMap(contigName)
-                Array((ci + ">" + contigName + "_" + posBin + "=" + paddingStart, x),
-                  (ci + ">X-SOFTCLIP-OR-DISCORDANT_%05d".format(map(contigName)) + "_" + bin + "=" + paddingStart, x))
+                Array((ci + ">" + contigName + "@" + posBin + "=" + paddingStart, x),
+                  (ci + ">X-SOFTCLIP-OR-DISCORDANT@%05d".format(map(contigName)) + "@" + bin + "=" + paddingStart, x))
               } else
-                Array((ci + ">" + contigName + "_" + posBin + "=" + paddingStart, x))
+                Array((ci + ">" + contigName + "@" + posBin + "=" + paddingStart, x))
             } else
-              Array((ci + ">" + contigName + "_" + posBin + "=" + paddingStart, x))
+              Array((ci + ">" + contigName + "@" + posBin + "=" + paddingStart, x))
           }
         } else
           None
@@ -171,13 +171,13 @@ class NewPosBinPartitioner(dict: Map[String, Int]) extends Partitioner {
 
   override def getPartition(key: Any): Int = key match {
     case key: String =>
-      // format => contigNameIndex__contigName_posBin=paddingStart
+      // format => contigNameIndex>contigName@posBin=paddingStart
       // val c = key.split("=")(0).split(">")(1)
       val c = key.split("[>=]")(1)
       if (c.startsWith("HLA")) {
-        dict("HLA_0")
-      } else if (c.contains("_alt_")) {
-        dict("alt_0")
+        dict("HLA@0")
+      } else if (c.contains("_alt@")) {
+        dict("alt@0")
       } else {
         dict(c)
       }
