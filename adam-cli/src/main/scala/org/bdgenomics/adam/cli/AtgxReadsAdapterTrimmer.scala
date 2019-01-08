@@ -92,25 +92,26 @@ class AtgxReadsAdapterTrimmer {
   //               |----read 1----->
   //               <----read 2-----|
   private def longestCommonSubLists(ls1: List[Int], ls2: List[Int]): List[Int] = {
-    val ls1Inits = ls1.inits.toList
-    val ls2Tails = ls2.tails.toList
+    val ls1Inits = ls1.inits
+    val ls2Tails = ls2.tails
 
-//    ls1Inits.intersect(ls2Tails).maxBy(_.length)
+    // ls1Inits.intersect(ls2Tails).maxBy(_.length)
     lcsAux(ls1Inits, ls2Tails)
   }
 
   @tailrec
-  private def lcsAux(ls1: List[List[Int]], ls2: List[List[Int]]): List[Int] = {
-    (ls1.headOption, ls2.headOption) match {
-      case (Some(h1), Some(h2)) => {
+  private def lcsAux(ls1: Iterator[List[Int]], ls2: Iterator[List[Int]]): List[Int] = {
+    (ls1.hasNext, ls2.hasNext) match {
+      case (true, true) => {
+        val h1 = ls1.next()
+        val h2 = ls2.next()
         if (h1 == h2) {
           h1
-        }
-        else {
+        } else {
           if (h1.length >= h2.length)
-            lcsAux(ls1.tail, ls2)
+            lcsAux(ls1, Iterator(h2) ++ ls2)
           else
-            lcsAux(ls1, ls2.tail)
+            lcsAux(Iterator(h1) ++ ls1, ls2)
         }
       }
       case _ => List.empty
@@ -118,8 +119,9 @@ class AtgxReadsAdapterTrimmer {
   }
 
   private def checkDiff(seq1: String, seq2: String, maxDiff: Int = 5): Boolean = {
-    val map = Map('A' -> 1, 'C' -> 2, 'T' -> 3, 'G' ->4)
-    val diff = seq1 zip seq2 count { case (c1, c2) =>
+    val map = Map('A' -> 1, 'C' -> 2, 'T' -> 3, 'G' -> 4)
+    val diff = seq1 zip seq2 count {
+      case (c1, c2) =>
         if ((map(c1) ^ map(c2)) == 0)
           false
         else
