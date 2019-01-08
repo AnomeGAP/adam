@@ -4,7 +4,7 @@ import org.bdgenomics.formats.avro.AlignmentRecord
 import org.bdgenomics.adam.cli.Utils.reverseComplementary
 
 import scala.annotation.tailrec
-import scala.collection.mutable.{HashMap, ListBuffer}
+import scala.collection.mutable.{ HashMap, ListBuffer }
 
 class AtgxReadsAdapterTrimmer {
   def trim(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
