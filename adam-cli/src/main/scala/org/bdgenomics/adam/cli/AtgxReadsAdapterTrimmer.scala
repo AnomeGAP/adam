@@ -4,7 +4,7 @@ import org.bdgenomics.formats.avro.AlignmentRecord
 import org.bdgenomics.adam.cli.Utils.reverseComplementary
 
 import scala.annotation.tailrec
-import scala.collection.mutable.{ HashMap, ListBuffer }
+import scala.collection.mutable.HashMap
 
 class AtgxReadsAdapterTrimmer {
   def trim(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
@@ -59,27 +59,32 @@ class AtgxReadsAdapterTrimmer {
   }
 
   private def getAPos(seq: String, nuc: Char = 'A'): Option[(List[Int], Int, Int)] = {
-    val dist = ListBuffer[Int]()
     var idx = 0
     var firstAIdx = -1
     var lastAIdx = -1
     var previousAIdx = -1
 
-    seq.foreach { c =>
+    val aPos = seq.map { c =>
       if (c == nuc) {
-        if (firstAIdx == -1) {
+        val t = if (firstAIdx == -1) {
           firstAIdx = idx
+          -1
         } else {
-          dist += (idx - previousAIdx)
+          idx - previousAIdx
         }
         previousAIdx = idx
         lastAIdx = idx
+        idx += 1
+        t
+      } else {
+        idx += 1
+        -1
       }
-      idx += 1
     }
+      .filter(_ >= 0)
 
     if (firstAIdx != -1) {
-      Some((dist.toList, firstAIdx, seq.length - lastAIdx - 1))
+      Some((aPos.toList, firstAIdx, seq.length - lastAIdx - 1))
     } else {
       None
     }
