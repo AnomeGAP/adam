@@ -202,6 +202,15 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   var trimOne = false
   @Args4jOption(required = false, name = "-trim_poly_g", usage = "trim poly G")
   var trimPolyG = false
+  @Args4jOption(required = false, name = "-compare_req", usage = "trim poly G compare req",
+    depends = { Array[String]("-trim_poly_g") })
+  var compareReq = 10
+  @Args4jOption(required = false, name = "-max_mismatch", usage = "trim poly G max mismatch",
+    depends = { Array[String]("-trim_poly_g") })
+  var maxMismatch = 5
+  @Args4jOption(required = false, name = "-allow_one_mismatch_for_each", usage = "trim poly G allow one mismatch for each",
+    depends = { Array[String]("-trim_poly_g") })
+  var allowOneMismatchForEach = 8
   var command: String = null
 }
 
@@ -725,10 +734,14 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
             reassnRdd
 
         val polyGTrimmedRdd =
-          if (args.trimPolyG)
-            adapterTrimmedRdd.mapPartitions(new AtgxReadsPolyGTrimmer().trim(_))
-          else
+          if (args.trimPolyG) {
+            val compareReq = args.compareReq
+            val maxMismatch = args.maxMismatch
+            val allowOneMismatchForEach = args.allowOneMismatchForEach
+            adapterTrimmedRdd.mapPartitions(new AtgxReadsPolyGTrimmer().trim(_, compareReq, maxMismatch, allowOneMismatchForEach))
+          } else {
             adapterTrimmedRdd
+          }
 
         val lenFilteredRdd = polyGTrimmedRdd.mapPartitions(new AtgxReadsLenFilter().filterLen(_, minLen))
 
