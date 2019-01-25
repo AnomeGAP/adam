@@ -11,7 +11,7 @@ class AtgxReadsPolyGTrimmer {
     iter.map { record =>
       val seq = record.getSequence
       val len = seq.length
-      val pos = findFirstGPos(seq, len - 1, len - 1,0, compareReq, maxMismatch, allowOneMismatchForEach)
+      val pos = findFirstGPos(seq, len - 1, len - 1, 0, compareReq, maxMismatch, allowOneMismatchForEach)
 
       if (pos >= 0) {
         val trimmedSeq = new String(seq.substring(0, pos))

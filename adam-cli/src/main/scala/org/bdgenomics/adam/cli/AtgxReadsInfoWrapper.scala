@@ -1,6 +1,5 @@
 package org.bdgenomics.adam.cli
 
-
 object AtgxReadsInfoParser {
   def parseFromName(nameStr: String): (String, AtgxReadsInfoWrapper) = {
     val pos = nameStr.lastIndexOf(" ")
@@ -17,8 +16,8 @@ object AtgxReadsInfoParser {
 
 class AtgxReadsInfoWrapper {
   /**
-    * This class parse readName field of AlignmentRecord, and provide getter and setter interfaces for
-    * accessing Atgenomix information
+   * This class parse readName field of AlignmentRecord, and provide getter and setter interfaces for
+   * accessing Atgenomix information
    */
   private var _ID: Long = 0L
   private var _barcode: Int = 0
@@ -62,5 +61,4 @@ class AtgxReadsInfoWrapper {
     _SN
   }
 }
-
 

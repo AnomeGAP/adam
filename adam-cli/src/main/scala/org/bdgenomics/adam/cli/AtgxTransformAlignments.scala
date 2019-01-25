@@ -10,7 +10,7 @@ import scala.collection.immutable
 
 object AtgxTransformAlignments {
   val stopwords = Seq("chrU_", "chrUn_", "chrEBV", "_decoy", "_random", "_hap", "NC_007605", "GL000", "hs37d5")
-  
+
   def mkPosBinIndices(sd: SequenceDictionary, partitionSize: Int = 1000000): Map[String, Int] = {
     val filteredContigNames = sd.records
       .filterNot(x => stopwords.exists(x.name.contains))
