@@ -73,11 +73,16 @@ private[adam] class FastqRecordConverter extends Serializable with Logging {
   private[converters] def parseReadInFastq(input: String,
                                            setFirstOfPair: Boolean = false,
                                            setSecondOfPair: Boolean = false,
+                                           rmHeader: Boolean = false,
                                            stringency: ValidationStringency = ValidationStringency.STRICT): (String, String, String) = {
     // since it's a private method, simple require call is ok without detailed error message
     require(!(setFirstOfPair && setSecondOfPair))
 
-    val lines = input.split('\n')
+    val lines = if (rmHeader) {
+      input.split('\n').tail
+    } else {
+      input.split('\n')
+    }
     require(lines.length == 4,
       s"Input must have 4 lines (${lines.length.toString} found):\n${input}")
 
@@ -126,16 +131,16 @@ private[adam] class FastqRecordConverter extends Serializable with Logging {
     (readNameNoSuffix, readSequence, readQualities)
   }
 
-  private[converters] def parseReadPairInFastq(input: String): (String, String, String, String, String, String) = {
+  private[converters] def parseReadPairInFastq(input: String, rmHeader: Boolean = false): (String, String, String, String, String, String) = {
     val lines = input.toString.split('\n')
     require(lines.length == 8,
       s"Record must have 8 lines (${lines.length.toString} found):\n${input}")
 
     val (firstReadName, firstReadSequence, firstReadQualities) =
-      parseReadInFastq(lines.take(4).mkString("\n"), setFirstOfPair = true, setSecondOfPair = false)
+      parseReadInFastq(lines.take(4).mkString("\n"), setFirstOfPair = true, setSecondOfPair = false, rmHeader = rmHeader)
 
     val (secondReadName, secondReadSequence, secondReadQualities) =
-      parseReadInFastq(lines.drop(4).mkString("\n"), setFirstOfPair = false, setSecondOfPair = true)
+      parseReadInFastq(lines.drop(4).mkString("\n"), setFirstOfPair = false, setSecondOfPair = true, rmHeader = rmHeader)
 
     (
       firstReadName,
@@ -195,7 +200,7 @@ private[adam] class FastqRecordConverter extends Serializable with Logging {
    *
    * @see convertFragment
    */
-  def convertPair(element: (Void, Text)): Iterable[AlignmentRecord] = {
+  def convertPair(element: (Void, Text), rmHeader: Boolean = false): Iterable[AlignmentRecord] = {
     val (
       firstReadName,
       firstReadSequence,
@@ -203,7 +208,7 @@ private[adam] class FastqRecordConverter extends Serializable with Logging {
       secondReadName,
       secondReadSequence,
       secondReadQualities
-      ) = parseReadPairInFastq(element._2.toString)
+      ) = parseReadPairInFastq(element._2.toString, rmHeader)
 
     // build and return iterators
     Iterable(
@@ -224,7 +229,7 @@ private[adam] class FastqRecordConverter extends Serializable with Logging {
    *
    * @see convertPair
    */
-  def convertFragment(element: (Void, Text)): Fragment = {
+  def convertFragment(element: (Void, Text), rmHeader: Boolean = false): Fragment = {
     val (
       firstReadName,
       firstReadSequence,
@@ -232,7 +237,7 @@ private[adam] class FastqRecordConverter extends Serializable with Logging {
       secondReadName,
       secondReadSequence,
       secondReadQualities
-      ) = parseReadPairInFastq(element._2.toString)
+      ) = parseReadPairInFastq(element._2.toString, rmHeader)
 
     require(
       firstReadName == secondReadName,
@@ -277,12 +282,13 @@ private[adam] class FastqRecordConverter extends Serializable with Logging {
     recordGroupOpt: Option[String] = None,
     setFirstOfPair: Boolean = false,
     setSecondOfPair: Boolean = false,
+    rmHeader: Boolean = false,
     stringency: ValidationStringency = ValidationStringency.STRICT): AlignmentRecord = {
     if (setFirstOfPair && setSecondOfPair)
       throw new IllegalArgumentException("setFirstOfPair and setSecondOfPair cannot be true at the same time")
 
     val (readName, readSequence, readQualities) =
-      parseReadInFastq(element._2.toString, setFirstOfPair, setSecondOfPair, stringency)
+      parseReadInFastq(element._2.toString, setFirstOfPair, setSecondOfPair, rmHeader, stringency)
 
     // default to 0
     val readInFragment =
