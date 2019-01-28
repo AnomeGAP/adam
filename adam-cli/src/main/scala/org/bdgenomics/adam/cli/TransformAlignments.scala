@@ -211,8 +211,6 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   @Args4jOption(required = false, name = "-allow_one_mismatch_for_each", usage = "trim poly G allow one mismatch for each",
     depends = { Array[String]("-trim_poly_g") })
   var allowOneMismatchForEach = 8
-  @Args4jOption(required = false, name = "-rm_header", usage = "remove header in fastq")
-  var rmHeader = false
   var command: String = null
 }
 
@@ -532,9 +530,9 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           sc.loadBam(args.inputPath)
         }
       } else if (args.forceLoadFastq) {
-        sc.loadFastq(args.inputPath, Option(args.pairedFastqFile), Option(args.fastqRecordGroup), args.rmHeader, stringency)
+        sc.loadFastq(args.inputPath, Option(args.pairedFastqFile), Option(args.fastqRecordGroup), stringency)
       } else if (args.forceLoadIFastq) {
-        sc.loadInterleavedFastq(args.inputPath, args.rmHeader)
+        sc.loadInterleavedFastq(args.inputPath)
       } else if (args.forceLoadParquet ||
         args.useAlignedReadPredicate ||
         args.limitProjection) {

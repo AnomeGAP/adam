@@ -386,7 +386,7 @@ class AlignmentRecordRDDSuite extends ADAMFunSuite {
     val tempBase = Files.createTempDirectory("noqual").toAbsolutePath.toString
 
     //read FASTQ (malformed)
-    val rddA = sc.loadFastq(noqualPath, None, None, false, ValidationStringency.LENIENT)
+    val rddA = sc.loadFastq(noqualPath, None, None, ValidationStringency.LENIENT)
 
     //write SAM (fixed and now well-formed)
     rddA.saveAsSam(tempBase + "/noqualA.sam")
@@ -398,7 +398,7 @@ class AlignmentRecordRDDSuite extends ADAMFunSuite {
     rddB.saveAsFastq(tempBase + "/noqualB.fastq")
 
     //read FASTQ (well-formed)
-    val rddC = sc.loadFastq(tempBase + "/noqualB.fastq", None, None, false, ValidationStringency.STRICT)
+    val rddC = sc.loadFastq(tempBase + "/noqualB.fastq", None, None, ValidationStringency.STRICT)
 
     val noqualA = rddA.rdd.collect()
     val noqualB = rddB.rdd.collect()

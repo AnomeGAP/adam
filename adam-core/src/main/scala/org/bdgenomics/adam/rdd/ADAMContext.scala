@@ -1834,7 +1834,7 @@ class ADAMContext(@transient val sc: SparkContext) extends Serializable with Log
    * @return Returns an unaligned AlignmentRecordRDD.
    */
   def loadInterleavedFastq(
-    pathName: String, rmHeader: Boolean = false): AlignmentRecordRDD = LoadInterleavedFastq.time {
+    pathName: String): AlignmentRecordRDD = LoadInterleavedFastq.time {
 
     val job = HadoopUtil.newJob(sc)
     val conf = ContextUtil.getConfiguration(job)
@@ -1852,7 +1852,7 @@ class ADAMContext(@transient val sc: SparkContext) extends Serializable with Log
 
     // convert records
     val fastqRecordConverter = new FastqRecordConverter
-    AlignmentRecordRDD.unaligned(records.flatMap(fastqRecordConverter.convertPair(_, rmHeader)))
+    AlignmentRecordRDD.unaligned(records.flatMap(fastqRecordConverter.convertPair))
   }
 
   /**
@@ -1875,19 +1875,16 @@ class ADAMContext(@transient val sc: SparkContext) extends Serializable with Log
     pathName1: String,
     optPathName2: Option[String],
     optRecordGroup: Option[String] = None,
-    rmHeader: Boolean = false,
     stringency: ValidationStringency = ValidationStringency.STRICT): AlignmentRecordRDD = LoadFastq.time {
 
     optPathName2.fold({
       loadUnpairedFastq(pathName1,
         optRecordGroup = optRecordGroup,
-        rmHeader = rmHeader,
         stringency = stringency)
     })(filePath2 => {
       loadPairedFastq(pathName1,
         filePath2,
         optRecordGroup = optRecordGroup,
-        rmHeader = rmHeader,
         stringency = stringency)
     })
   }
@@ -1909,21 +1906,18 @@ class ADAMContext(@transient val sc: SparkContext) extends Serializable with Log
     pathName1: String,
     pathName2: String,
     optRecordGroup: Option[String] = None,
-    rmHeader: Boolean = false,
     stringency: ValidationStringency = ValidationStringency.STRICT): AlignmentRecordRDD = LoadPairedFastq.time {
 
     val reads1 = loadUnpairedFastq(
       pathName1,
       setFirstOfPair = true,
       optRecordGroup = optRecordGroup,
-      rmHeader = rmHeader,
       stringency = stringency
     )
     val reads2 = loadUnpairedFastq(
       pathName2,
       setSecondOfPair = true,
       optRecordGroup = optRecordGroup,
-      rmHeader = rmHeader,
       stringency = stringency
     )
 
@@ -1967,7 +1961,6 @@ class ADAMContext(@transient val sc: SparkContext) extends Serializable with Log
     setFirstOfPair: Boolean = false,
     setSecondOfPair: Boolean = false,
     optRecordGroup: Option[String] = None,
-    rmHeader: Boolean = false,
     stringency: ValidationStringency = ValidationStringency.STRICT): AlignmentRecordRDD = LoadUnpairedFastq.time {
 
     val job = HadoopUtil.newJob(sc)
@@ -1997,7 +1990,6 @@ class ADAMContext(@transient val sc: SparkContext) extends Serializable with Log
             recordGroup),
         setFirstOfPair,
         setSecondOfPair,
-        rmHeader,
         stringency
       )
     ))
@@ -2293,7 +2285,7 @@ class ADAMContext(@transient val sc: SparkContext) extends Serializable with Log
    *   sequencing fragment.
    */
   def loadInterleavedFastqAsFragments(
-    pathName: String, rmHeader: Boolean = false): FragmentRDD = LoadInterleavedFastqFragments.time {
+    pathName: String): FragmentRDD = LoadInterleavedFastqFragments.time {
 
     val job = HadoopUtil.newJob(sc)
     val conf = ContextUtil.getConfiguration(job)
@@ -2311,7 +2303,7 @@ class ADAMContext(@transient val sc: SparkContext) extends Serializable with Log
 
     // convert records
     val fastqRecordConverter = new FastqRecordConverter
-    FragmentRDD.fromRdd(records.map(fastqRecordConverter.convertFragment(_, rmHeader)))
+    FragmentRDD.fromRdd(records.map(fastqRecordConverter.convertFragment))
   }
 
   /**
@@ -2933,7 +2925,6 @@ class ADAMContext(@transient val sc: SparkContext) extends Serializable with Log
     optRecordGroup: Option[String] = None,
     optPredicate: Option[FilterPredicate] = None,
     optProjection: Option[Schema] = None,
-    rmHeader: Boolean = false,
     stringency: ValidationStringency = ValidationStringency.STRICT): AlignmentRecordRDD = LoadAlignments.time {
 
     // need this to pick up possible .bgz extension
@@ -2949,7 +2940,7 @@ class ADAMContext(@transient val sc: SparkContext) extends Serializable with Log
       loadInterleavedFastq(pathName)
     } else if (isFastqExt(trimmedPathName)) {
       log.info(s"Loading $pathName as unpaired FASTQ and converting to AlignmentRecords.")
-      loadFastq(pathName, optPathName2, optRecordGroup, rmHeader, stringency)
+      loadFastq(pathName, optPathName2, optRecordGroup, stringency)
     } else if (isFastaExt(trimmedPathName)) {
       log.info(s"Loading $pathName as FASTA and converting to AlignmentRecords.")
       AlignmentRecordRDD.unaligned(loadFasta(pathName, maximumLength = 10000L).toReads)
@@ -2991,7 +2982,6 @@ class ADAMContext(@transient val sc: SparkContext) extends Serializable with Log
     pathName: String,
     optPredicate: Option[FilterPredicate] = None,
     optProjection: Option[Schema] = None,
-    rmHeader: Boolean = false,
     stringency: ValidationStringency = ValidationStringency.STRICT): FragmentRDD = LoadFragments.time {
 
     // need this to pick up possible .bgz extension
@@ -3011,7 +3001,7 @@ class ADAMContext(@transient val sc: SparkContext) extends Serializable with Log
       }
     } else if (isInterleavedFastqExt(trimmedPathName)) {
       log.info(s"Loading $pathName as interleaved FASTQ and converting to Fragments.")
-      loadInterleavedFastqAsFragments(pathName, rmHeader)
+      loadInterleavedFastqAsFragments(pathName)
     } else {
       log.info(s"Loading $pathName as Parquet containing Fragments.")
       loadParquetFragments(pathName, optPredicate = optPredicate, optProjection = optProjection)
