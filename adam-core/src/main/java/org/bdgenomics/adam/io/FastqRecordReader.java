@@ -380,7 +380,7 @@ abstract class FastqRecordReader extends RecordReader<Void, Text> {
             if (skipped == 0) {
                 return false; // EOF
             }
-        } while (readName.toString().startsWith("##reads"));
+        } while (readName.toString().startsWith("##reads") || readName.toString().startsWith("##parts"));
 
         if (readName.getBytes()[0] != '@') {
             throw new RuntimeException("unexpected fastq record didn't start with '@' at " +
