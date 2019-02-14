@@ -4,12 +4,12 @@ import scala.annotation.switch
 
 class AtgxReadsLCFilter extends java.io.Serializable {
   // return tuple of (Iterator(ordinary reads), Iterator(low complexity reads)
-  def filterReads(iter: Iterator[AlignmentRecord], invFlag: Boolean = false, kmer: Int = 3): Iterator[AlignmentRecord] = {
+  def filterReads(iter: Iterator[AlignmentRecord], invFlag: Boolean = false, kmer: Int, thresholdLenFactor: Int): Iterator[AlignmentRecord] = {
     val q =
       if (!invFlag)
-        iter.filter(x => !isLC(x.getSequence))
+        iter.filter(x => !isLC(x.getSequence, kmer, thresholdLenFactor))
       else
-        iter.filter(x => isLC(x.getSequence))
+        iter.filter(x => isLC(x.getSequence, kmer, thresholdLenFactor))
     q
   }
 
@@ -45,9 +45,9 @@ class AtgxReadsLCFilter extends java.io.Serializable {
   //TODO: in polyA scenario, kmer AAA will reach threshold 25 when the actual sequence includes 27 polyA.  should we take it as LC regions ?
   //TODO: calculate entropy
   // identify reads with single nucleotides as low complexity reads
-  def isLC(str: String, kmer: Int = 3): Boolean = {
-    val halfLen = str.length / 2
-    val threshold = halfLen / kmer
+  def isLC(str: String, kmer: Int, thresholdLenFactor: Int): Boolean = {
+    val thresholdLen = str.length / thresholdLenFactor
+    val threshold = thresholdLen / kmer
     if (scanKmer(str, kmer, threshold))
       true
     else

@@ -178,11 +178,14 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   @Args4jOption(required = false, name = "-quality_encode", usage = "encode quality with depth",
     depends = { Array[String]("-tag_reads") })
   var encodeQuality = false
-  @Args4jOption(required = false, name = "-filter_lq_reads", usage = "filter out reads containing max_lq_base of base with quality < min_quality", depends = { Array[String]("-tag_reads") })
+  @Args4jOption(required = false, name = "-filter_lq_reads", usage = "filter out reads containing max_lq_base of base with quality < min_quality",
+    depends = { Array[String]("-tag_reads") })
   var filterLQReads = false
-  @Args4jOption(required = false, name = "-min_quality", usage = "threshold for low quality base, defaulted as '?', representing Q30 for Illumina 1.8+ Phred+33", depends = { Array[String]("-tag_reads", "-filter_lq_reads") })
+  @Args4jOption(required = false, name = "-min_quality", usage = "threshold for low quality base, defaulted as '?', representing Q30 for Illumina 1.8+ Phred+33",
+    depends = { Array[String]("-tag_reads", "-filter_lq_reads") })
   var minQuality = 30
-  @Args4jOption(required = false, name = "-max_lq_base", usage = "max acceptable low quality base for -filter_lq_reads, defaulted as 10", depends = { Array[String]("-tag_reads", "-filter_lq_reads") })
+  @Args4jOption(required = false, name = "-max_lq_base", usage = "max acceptable low quality base for -filter_lq_reads, defaulted as 10",
+    depends = { Array[String]("-tag_reads", "-filter_lq_reads") })
   var maxLQBase = 10
   @Args4jOption(required = false, name = "-trim_head", usage = "trim head",
     depends = { Array[String]("-tag_reads") })
@@ -211,6 +214,12 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   @Args4jOption(required = false, name = "-allow_one_mismatch_for_each", usage = "trim poly G allow one mismatch for each",
     depends = { Array[String]("-trim_poly_g") })
   var allowOneMismatchForEach = 8
+  @Args4jOption(required = false, name = "-lc_kmer", usage = "Low complexity kmer",
+    depends = { Array[String]("-tag_reads", "-filter_lc_reads") })
+  var lcKmer = 3
+  @Args4jOption(required = false, name = "-lc_threshold_len_factor", usage = "Low complexity: threshold = length / lc_threshold_len_factor / lc_kmer",
+    depends = { Array[String]("-tag_reads", "-filter_lc_reads") })
+  var lcThresholdLenFactor = 2
   var command: String = null
 }
 
@@ -747,9 +756,11 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
 
         val lcFilteredRdd =
           if (args.filterLCReads) {
+            val lcKmer = args.lcKmer
+            val lcThresholdLenFactor = args.lcThresholdLenFactor
             // generate and save LC filtered AlignmentRecord entry
             AlignmentRecordRDD(
-              lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true)),
+              lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true, lcKmer, lcThresholdLenFactor)),
               outputRdd.sequences,
               outputRdd.recordGroups,
               outputRdd.processingSteps)
@@ -760,7 +771,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
                 false
               )
 
-            lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false))
+            lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false, lcKmer, lcThresholdLenFactor))
           } else {
             lenFilteredRdd
           }
