@@ -96,6 +96,8 @@ class AtgxReadsBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, w
     }
   }
 
+  // base on proc10xG
+  // https://github.com/ucdavis-bioinformatics/proc10xG/blob/master/process_10xReads.py
   private def getHammingOne(seq: String): List[Long] = {
     val baseDict = Map(
       'A' -> List('C', 'G', 'T'),
