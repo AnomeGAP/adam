@@ -18,6 +18,8 @@ class AtgxReadsInfoWrapper {
   /**
    * This class parse readName field of AlignmentRecord, and provide getter and setter interfaces for
    * accessing Atgenomix information
+   * _SN: sample name information, used in a scenario that reads from multiple samples are pooled together
+   *      in seqGraph downstream pipelines.
    */
   private var _ID: Long = 0L
   private var _barcode: Int = 0
