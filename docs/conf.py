@@ -15,17 +15,28 @@ import sys
 import os
 import inspect
 import re
+import imp
+import mock
 from datetime import datetime
+
+# These lines added to enable Sphinx to work without installing.
+MOCK_MODULES = [
+    "py4j",
+    "py4j.java_gateway",
+    "py4j.protocol",
+    "pyspark",
+    "pyspark.rdd",
+    "pyspark.sql"
+]
+
+for mod_name in MOCK_MODULES:
+    sys.modules[mod_name] = mock.Mock()
+
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-sys.path.insert(0, os.path.abspath('../src'))
-
-# This makes the modules located in docs/vendor available to import
-sys.path.insert(0, os.path.abspath('./vendor'))
-import sphinxcontrib.fulltoc
-
+sys.path.insert(0, os.path.abspath('../adam-python'))
 
 def real_dir_name(p, n=1):
     p = os.path.realpath(p)
@@ -42,21 +53,26 @@ bdgVersion = '0.23.0-SNAPSHOT'
 # -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
-#needs_sphinx = '1.0'
+needs_sphinx = '1.5.6'
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.autosummary',
     'sphinx.ext.doctest',
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
     'sphinx.ext.intersphinx',
     'sphinx.ext.mathjax',
-    'sphinxcontrib.fulltoc',
 ]
+
+extlinks = {
+    'issue': ('https://github.com/bigdatagenomics/adam/issues/%s', '#'),
+    'pr': ('https://github.com/bigdatagenomics/adam/pull/%s', 'PR #'),
+}
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/2', None),
@@ -78,6 +94,7 @@ def skip(app, what, name, obj, skip, options):
 def setup(app):
     app.connect('autodoc-skip-member', skip)
 
+autosummary_generate = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -94,7 +111,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'bdgenomics.workflows'
+project = u'bdgenomics.adam'
 copyright = u'2017 – %i Big Data Genomics' % datetime.now().year
 author = u'Big Data Genomics'
 
@@ -159,12 +176,9 @@ autodoc_member_order = 'bysource'
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
 html_theme_options = {
-    "github_banner": True,
-    "github_user": "bdgenomics",
-    "github_repo": "workflows",
-    "caption_font_size": "24px"
+    'collapse_navigation': True,
 }
 
 # Theme options are theme-specific and customize the look and feel of a theme
@@ -279,7 +293,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, 'workflows.tex', u'bdgenomics.workflows Documentation',
+  (master_doc, 'adam.tex', u'bdgenomics.adam Documentation',
    u'Big Data Genomics', 'manual'),
 ]
 
@@ -309,7 +323,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'bdgenomics.workflows', u'bdgenomics.workflows Documentation',
+    (master_doc, 'bdgenomics.adam', u'bdgenomics.adam Documentation',
      [author], 1)
 ]
 
@@ -323,8 +337,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  (master_doc, 'Workflows', u'bdgenomics.workflows Documentation',
-   author, 'Workflows', 'Toil workflows for running Big Data Genomics tools.',
+  (master_doc, 'ADAM', u'bdgenomics.adam Documentation',
+   author, 'ADAM', 'ADAM: An Apache Spark-based genomics analysis platform.',
    'Miscellaneous'),
 ]
 

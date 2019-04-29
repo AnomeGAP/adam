@@ -38,9 +38,11 @@ tool takes two required arguments:
 2. ``OUTPUT``: The path to save the transformed reads to. Supports any
    of ADAM's read output formats.
 
-Beyond the `default options <#default-args>`__ and the `legacy output
-options <#legacy-output>`__, ``transformAlignments`` supports a vast
-range of options. These options fall into several general categories:
+Beyond the `default options <#default-args>`__, the `legacy output
+options <#legacy-output>`__, and the
+`partitioned output options <#partitioned-output>`__,
+``transformAlignments`` supports a vast range of options. These options
+fall into several general categories:
 
 -  General options:
 
@@ -67,7 +69,7 @@ range of options. These options fall into several general categories:
       FASTQ.
    -  ``-paired_fastq``: Forces ``-force_load_fastq``, and passes the
       path of a second-of-pair FASTQ file to load.
-   -  ``-record_group``: If loading FASTQ, sets the record group name on
+   -  ``-read_group``: If loading FASTQ, sets the read group name on
       each read to this value.
    -  ``-force_load_ifastq``: Forces ADAM to try to load the input as
       interleaved FASTQ.
@@ -103,6 +105,14 @@ range of options. These options fall into several general categories:
       observations. If BQSR is run, this option should be passed, along
       with a path to a known variation database (e.g.,
       `dbSNP <https://www.ncbi.nlm.nih.gov/projects/SNP/>`__).
+   -  ``-sampling_fraction``: The fraction of reads to sample when creating
+      the recalibration table. Omitted by default.
+   -  ``-sampling_seed``: The seed to use when randomly sampling reads. Only
+      used if ``-sampling_fraction`` is given. We do not set this parameter
+      by default, which can lead to inconsistent results on a run-by-run
+      basis due to randomization. If the sampling seed is set or sampling
+      is omitted, then two runs will produce equivalent results. If this
+      parameter is set to 0, then a seed will not be used.
 
 -  Indel realignment options: Indel realignment is run with the
    ``-realign_indels`` flag. Additionally, the Indel realignment engine
@@ -216,8 +226,9 @@ arguments:
 2. ``OUTPUT``: The path to save the transformed genotypes to. Supports
    any of ADAM's genotype output formats.
 
-Beyond the `default options <#default-args>`__ and the `legacy output
-options <#legacy-output>`__, ``transformGenotypes``
+Beyond the `default options <#default-args>`__, the `legacy output
+options <#legacy-output>`__, and the
+`partitioned output options <#partitioned-output>`__, ``transformGenotypes``
 has additional arguments:
 
 -  ``-coalesce``: Sets the number of partitions to coalesce the output

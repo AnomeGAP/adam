@@ -19,8 +19,9 @@ package org.bdgenomics.adam.cli
 
 import htsjdk.samtools.ValidationStringency
 import org.apache.spark.SparkContext
+import org.bdgenomics.adam.converters.VariantContextConverter
 import org.bdgenomics.adam.rdd.ADAMContext._
-import org.bdgenomics.adam.rdd.{ ADAMSaveAnyArgs, GenomicRDD }
+import org.bdgenomics.adam.rdd.{ ADAMSaveAnyArgs, GenomicDataset }
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.{ Argument, Option ⇒ Args4jOption }
 
@@ -46,6 +47,9 @@ class TransformGenotypesArgs extends Args4jBase with ADAMSaveAnyArgs with Parque
   @Args4jOption(required = false, name = "-force_shuffle_coalesce", usage = "Even if the repartitioned RDD has fewer partitions, force a shuffle.")
   var forceShuffle: Boolean = false
 
+  @Args4jOption(required = false, name = "-nested_annotations", usage = "Populate the variant.annotation field in the Genotype records. Disabled by default.")
+  var nestedAnnotations: Boolean = false
+
   @Args4jOption(required = false, name = "-sort_on_save", usage = "Sort VCF output by contig index.")
   var sort: Boolean = false
 
@@ -64,6 +68,12 @@ class TransformGenotypesArgs extends Args4jBase with ADAMSaveAnyArgs with Parque
   @Args4jOption(required = false, name = "-stringency", usage = "Stringency level for various checks; can be SILENT, LENIENT, or STRICT. Defaults to STRICT.")
   var stringency: String = "STRICT"
 
+  @Args4jOption(required = false, name = "-partition_by_start_pos", usage = "Save the data partitioned by genomic range bins based on start pos using Hive-style partitioning.")
+  var partitionByStartPos: Boolean = false
+
+  @Args4jOption(required = false, name = "-partition_bin_size", usage = "Partition bin size used in Hive-style partitioning. Defaults to 1Mbp (1,000,000) base pairs).")
+  var partitionedBinSize = 1000000
+
   // must be defined due to ADAMSaveAnyArgs, but unused here
   var sortFastqOutput: Boolean = false
 }
@@ -77,12 +87,12 @@ class TransformGenotypes(val args: TransformGenotypesArgs)
   val stringency = ValidationStringency.valueOf(args.stringency)
 
   /**
-   * Coalesce the specified GenomicRDD if requested.
+   * Coalesce the specified GenomicDataset if requested.
    *
-   * @param rdd GenomicRDD to coalesce.
-   * @return The specified GenomicRDD coalesced if requested.
+   * @param rdd GenomicDataset to coalesce.
+   * @return The specified GenomicDataset coalesced if requested.
    */
-  private def maybeCoalesce[U <: GenomicRDD[_, U]](rdd: U): U = {
+  private def maybeCoalesce[U <: GenomicDataset[_, _, U]](rdd: U): U = {
     if (args.coalesce != -1) {
       log.info("Coalescing the number of partitions to '%d'".format(args.coalesce))
       if (args.coalesce > rdd.rdd.partitions.length || args.forceShuffle) {
@@ -96,12 +106,12 @@ class TransformGenotypes(val args: TransformGenotypesArgs)
   }
 
   /**
-   * Sort the specified GenomicRDD if requested.
+   * Sort the specified GenomicDataset if requested.
    *
-   * @param rdd GenomicRDD to sort.
-   * @return The specified GenomicRDD sorted if requested.
+   * @param rdd GenomicDataset to sort.
+   * @return The specified GenomicDataset sorted if requested.
    */
-  private def maybeSort[U <: GenomicRDD[_, U]](rdd: U): U = {
+  private def maybeSort[U <: GenomicDataset[_, _, U]](rdd: U): U = {
     if (args.sort) {
       log.info("Sorting before saving")
       rdd.sort()
@@ -117,6 +127,11 @@ class TransformGenotypes(val args: TransformGenotypesArgs)
     require(!(args.sort && args.sortLexicographically),
       "Cannot set both -sort_on_save and -sort_lexicographically_on_save.")
 
+    if (args.nestedAnnotations) {
+      log.info("Populating the variant.annotation field in the Genotype records")
+      sc.hadoopConfiguration.setBoolean(VariantContextConverter.nestAnnotationInGenotypesProperty, true)
+    }
+
     val genotypes = sc.loadGenotypes(
       args.inputPath,
       optPredicate = None,
@@ -126,7 +141,12 @@ class TransformGenotypes(val args: TransformGenotypesArgs)
     if (args.outputPath.endsWith(".vcf")) {
       maybeSort(maybeCoalesce(genotypes.toVariantContexts)).saveAsVcf(args)
     } else {
-      maybeSort(maybeCoalesce(genotypes)).saveAsParquet(args)
+      if (args.partitionByStartPos) {
+        maybeSort(maybeCoalesce(genotypes)).saveAsPartitionedParquet(args.outputPath, partitionSize = args.partitionedBinSize)
+      } else {
+        maybeSort(maybeCoalesce(genotypes)).saveAsParquet(args)
+      }
+
     }
   }
 }

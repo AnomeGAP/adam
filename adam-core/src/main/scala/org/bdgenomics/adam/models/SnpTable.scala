@@ -22,7 +22,7 @@ import com.esotericsoftware.kryo.{ Kryo, Serializer }
 import org.apache.spark.rdd.MetricsContext._
 import org.apache.spark.rdd.RDD
 import org.bdgenomics.adam.instrumentation.Timers._
-import org.bdgenomics.adam.rdd.variant.VariantRDD
+import org.bdgenomics.adam.rdd.variant.VariantDataset
 import org.bdgenomics.utils.misc.Logging
 import scala.annotation.tailrec
 import scala.math.{ max, min }
@@ -30,10 +30,10 @@ import scala.math.{ max, min }
 /**
  * A table containing all of the SNPs in a known variation dataset.
  *
- * @param indices A map of contig names to the (first, last) index in the
- *   site array that contain data from this contig.
+ * @param indices A map of reference names to the (first, last) index in the
+ *   site array that contain data from this reference.
  * @param sites An array containing positions that have masked SNPs. Sorted by
- *   contig name and then position.
+ *   reference name and then position.
  */
 class SnpTable private[models] (
     private[models] val indices: Map[String, (Int, Int)],
@@ -143,18 +143,18 @@ object SnpTable {
   }
 
   /**
-   * Creates a SNP Table from a VariantRDD.
+   * Creates a SNP Table from a VariantDataset.
    *
    * @param variants The variants to populate the table from.
    * @return Returns a new SNPTable containing the input variants.
    */
-  def apply(variants: VariantRDD): SnpTable = CreatingKnownSnpsTable.time {
+  def apply(variants: VariantDataset): SnpTable = CreatingKnownSnpsTable.time {
     val (indices, positions) = CollectingSnps.time {
       val sortedVariants = variants.sort()
         .rdd
         .cache()
 
-      val contigIndices = sortedVariants.map(_.getContigName)
+      val referenceIndices = sortedVariants.map(_.getReferenceName)
         .zipWithIndex
         .mapValues(v => (v.toInt, v.toInt))
         .reduceByKeyLocally((p1, p2) => {
@@ -165,7 +165,7 @@ object SnpTable {
       // unpersist the cached variants
       sortedVariants.unpersist()
 
-      (contigIndices, sites)
+      (referenceIndices, sites)
     }
     new SnpTable(indices, positions)
   }
@@ -176,8 +176,8 @@ private[adam] class SnpTableSerializer extends Serializer[SnpTable] {
   def write(kryo: Kryo, output: Output, obj: SnpTable) {
     output.writeInt(obj.indices.size)
     obj.indices.foreach(kv => {
-      val (contigName, (lowerBound, upperBound)) = kv
-      output.writeString(contigName)
+      val (referenceName, (lowerBound, upperBound)) = kv
+      output.writeString(referenceName)
       output.writeInt(lowerBound)
       output.writeInt(upperBound)
     })

@@ -4,7 +4,7 @@
   <parent>
     <groupId>org.bdgenomics.adam</groupId>
     <artifactId>adam-parent-spark2_2.11</artifactId>
-    <version>0.24.0-SNAPSHOT</version>
+    <version>0.26.0</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
@@ -102,7 +102,6 @@
               <arguments>
                 <argument>org.bdgenomics.adam.sql</argument>
                 <argument>org.bdgenomics.formats.avro.AlignmentRecord</argument>
-                <argument>org.bdgenomics.formats.avro.Contig</argument>
                 <argument>org.bdgenomics.formats.avro.Dbxref</argument>
                 <argument>org.bdgenomics.formats.avro.Feature</argument>
                 <argument>org.bdgenomics.formats.avro.Fragment</argument>
@@ -110,11 +109,12 @@
                 <argument>org.bdgenomics.formats.avro.NucleotideContigFragment</argument>
                 <argument>org.bdgenomics.formats.avro.OntologyTerm</argument>
                 <argument>org.bdgenomics.formats.avro.ProcessingStep</argument>
+                <argument>org.bdgenomics.formats.avro.Reference</argument>
                 <argument>org.bdgenomics.formats.avro.TranscriptEffect</argument>
                 <argument>org.bdgenomics.formats.avro.Variant</argument>
                 <argument>org.bdgenomics.formats.avro.VariantAnnotation</argument>
                 <argument>org.bdgenomics.formats.avro.VariantCallingAnnotations</argument>
-                <argument>adam-core/target/generated-sources/src/main/scala/org/bdgenomics/adam/sql/Schemas.scala</argument>
+                <argument>${project.basedir}/target/generated-sources/src/main/scala/org/bdgenomics/adam/sql/Schemas.scala</argument>
               </arguments>
               <classpathScope>compile</classpathScope>
             </configuration>
@@ -130,7 +130,6 @@
               <arguments>
                 <argument>org.bdgenomics.adam.projections</argument>
                 <argument>org.bdgenomics.formats.avro.AlignmentRecord</argument>
-                <argument>org.bdgenomics.formats.avro.Contig</argument>
                 <argument>org.bdgenomics.formats.avro.Dbxref</argument>
                 <argument>org.bdgenomics.formats.avro.Feature</argument>
                 <argument>org.bdgenomics.formats.avro.Fragment</argument>
@@ -138,7 +137,8 @@
                 <argument>org.bdgenomics.formats.avro.NucleotideContigFragment</argument>
                 <argument>org.bdgenomics.formats.avro.OntologyTerm</argument>
                 <argument>org.bdgenomics.formats.avro.Read</argument>
-                <argument>org.bdgenomics.formats.avro.RecordGroup</argument>
+                <argument>org.bdgenomics.formats.avro.ReadGroup</argument>
+                <argument>org.bdgenomics.formats.avro.Reference</argument>
                 <argument>org.bdgenomics.formats.avro.Sample</argument>
                 <argument>org.bdgenomics.formats.avro.Sequence</argument>
                 <argument>org.bdgenomics.formats.avro.Slice</argument>
@@ -146,7 +146,7 @@
                 <argument>org.bdgenomics.formats.avro.Variant</argument>
                 <argument>org.bdgenomics.formats.avro.VariantAnnotation</argument>
                 <argument>org.bdgenomics.formats.avro.VariantCallingAnnotations</argument>
-                <argument>adam-core/target/generated-sources/src/main/scala/org/bdgenomics/adam/projections/Enums.scala</argument>
+                <argument>${project.basedir}/target/generated-sources/src/main/scala/org/bdgenomics/adam/projections/Enums.scala</argument>
               </arguments>
               <classpathScope>compile</classpathScope>
             </configuration>
@@ -186,11 +186,6 @@
     <dependency>
       <groupId>org.bdgenomics.utils</groupId>
       <artifactId>utils-intervalrdd-spark2_${scala.version.prefix}</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.hammerlab</groupId>
-      <artifactId>genomic-loci_${scala.version.prefix}</artifactId>
       <scope>compile</scope>
     </dependency>
     <dependency>

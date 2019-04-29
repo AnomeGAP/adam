@@ -6,35 +6,14 @@ version 3.1.1 or later installed in order to build ADAM.
 
     **Note:** The default configuration is for Hadoop 2.7.3. If building
     against a different version of Hadoop, please pass
-    ``-Dhadoop.version=<HADOOP_VERSION>`` to the Maven command. ADAM
-    will cross-build for both Spark 1.x and 2.x, but builds by default
-    against Spark 1.6.3. To build for Spark 2, run the
-    ``./scripts/move_to_spark2.sh`` script.
+    ``-Dhadoop.version=<HADOOP_VERSION>`` to the Maven command.
 
 .. code:: bash
 
     git clone https://github.com/bigdatagenomics/adam.git
     cd adam
-    export MAVEN_OPTS="-Xmx512m -XX:MaxPermSize=128m"
-    mvn clean package -DskipTests
+    mvn install
 
-Outputs
-
-::
-
-    ...
-    [INFO] ------------------------------------------------------------------------
-    [INFO] BUILD SUCCESS
-    [INFO] ------------------------------------------------------------------------
-    [INFO] Total time: 9.647s
-    [INFO] Finished at: Thu May 23 15:50:42 PDT 2013
-    [INFO] Final Memory: 19M/81M
-    [INFO] ------------------------------------------------------------------------
-
-You might want to take a peek at the ``scripts/jenkins-test`` script and
-give it a run. It will fetch a mouse chromosome, encode it to ADAM reads
-and pileups, run flagstat, etc. We use this script to test that ADAM is
-working correctly.
 
 Running ADAM
 ------------
@@ -58,10 +37,7 @@ jobs that operate locally. The latter two aliases call scripts that wrap
 the ``spark-submit`` and ``spark-shell`` commands to set up ADAM. You
 will need to have the Spark binaries on your system; prebuilt binaries
 can be downloaded from the `Spark
-website <http://spark.apache.org/downloads.html>`__. Our `continuous
-integration setup <https://amplab.cs.berkeley.edu/jenkins/job/ADAM/>`__
-builds ADAM against Spark versions 1.6.1 and 2.0.0, Scala versions 2.10
-and 2.11, and Hadoop versions 2.3.0 and 2.6.0.
+website <http://spark.apache.org/downloads.html>`__.
 
 Once this alias is in place, you can run ADAM by simply typing
 ``adam-submit`` at the command line.
@@ -79,7 +55,7 @@ To build and test `ADAM's Python bindings <#python>`__, enable the
 
 .. code:: bash
 
-    mvn -Ppython package
+    mvn -P python package
 
 This will enable the ``adam-python`` module as part of the ADAM build.
 This module uses Maven to invoke a Makefile that builds a Python egg and
@@ -87,13 +63,23 @@ runs tests. To build this module, we require either an active
 `Conda <https://conda.io/>`__ or
 `virtualenv <https://virtualenv.pypa.io/en/stable/>`__ environment.
 
+ADAM can run on both Python 2 and Python 3.
 `To setup and activate a Conda
-environment <https://conda.io/docs/using/envs.html>`__, run:
+environment <https://conda.io/docs/using/envs.html>`__ for Python 2.7, run:
 
 .. code:: bash
 
     conda create -n adam python=2.7 anaconda
     source activate adam
+
+`To setup and activate a Conda
+environment <https://conda.io/docs/using/envs.html>`__ for Python 3.6, run:
+
+.. code:: bash
+
+    conda create -n adam python=3.6 anaconda
+    source activate adam
+
 
 `To setup and activate a virtualenv
 environment <https://virtualenv.pypa.io/en/stable/userguide/#usage>`__,
@@ -138,7 +124,7 @@ ADAM supports SparkR, for Spark 2.1.0 and onwards. To build and test
 
 .. code:: bash
 
-    mvn -Pr package
+    mvn -P r package
 
 This will enable the ``adam-r`` module as part of the ADAM build. This
 module uses Maven to invoke the ``R`` executable to build the
@@ -151,9 +137,21 @@ module uses Maven to invoke the ``R`` executable to build the
     R -e "install.packages('roxygen2', repos='http://cran.rstudio.com/')"
     R -e "install.packages('devtools', repos='http://cran.rstudio.com/')"
 
+Installation of ``devtools`` may require ``libgit2`` as a dependency.
+
+.. code:: bash
+
+    apt-get install libgit2-dev
+
 The build also requires you to have the ``SparkR`` package installed,
-and the ADAM JARs must be built and provided to ``SparkR``. This can be
-done with the following bash commands:
+where ``v2.x.x`` should match your Spark version.
+
+.. code:: bash
+
+   R -e "devtools::install_github('apache/spark@v2.x.x', subdir='R/pkg')"
+
+The ADAM JARs can then be provided to ``SparkR`` with the following bash
+commands:
 
 .. code:: bash
 

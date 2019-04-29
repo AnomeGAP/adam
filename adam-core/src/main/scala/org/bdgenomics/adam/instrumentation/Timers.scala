@@ -49,6 +49,7 @@ object Timers extends Metrics {
   val LoadIntervalList = timer("Load IntervalList format")
   val LoadNarrowPeak = timer("Load NarrowPeak format")
   val LoadPairedFastq = timer("Load paired FASTQ format")
+  val LoadPairedFastqFragments = timer("Load paired FASTQ format as Fragments")
   val LoadParquet = timer("Load Parquet + Avro format")
   val LoadUnpairedFastq = timer("Load unpaired FASTQ format")
   val LoadVcf = timer("Load VCF format")
@@ -127,7 +128,7 @@ object Timers extends Metrics {
   val GrowingTrees = timer("Growing forest of trees")
   val RunningMapSideJoin = timer("Running map-side join")
 
-  // org.bdgenomics.adam.rdd.GenomicRDD
+  // org.bdgenomics.adam.rdd.GenomicDataset
   val InnerBroadcastJoin = timer("Inner broadcast region join")
   val RightOuterBroadcastJoin = timer("Right outer broadcast region join")
   val BroadcastJoinAndGroupByRight = timer("Broadcast join followed by group-by on right")

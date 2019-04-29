@@ -28,7 +28,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.bdgenomics.adam.models.{
   MdTag,
-  RecordGroupDictionary,
+  ReadGroupDictionary,
   ReferenceRegion,
   SnpTable
 }
@@ -46,19 +46,24 @@ import scala.annotation.tailrec
  * @param input The reads to recalibrate.
  * @param knownSnps A broadcast variable containing the locations of any known
  *   SNPs to ignore during recalibration table generation.
- * @param recordGroups The record groups that the reads in this dataset are from.
+ * @param readGroups The read groups that the reads in this dataset are from.
  * @param minAcceptableAsciiPhred The minimum acceptable Phred score to attempt
  *   recalibrating, expressed as an ASCII character with Illumina (33) encodings.
  *   Defaults to '&' (Phred 5).
  * @param optStorageLevel An optional storage level to apply if caching the
  *   output of the first stage of BQSR.
+ * @param optSamplingFraction An optional fraction of reads to sample when
+ *   generating the covariate table.
+ * @param optSamplingSeed An optional seed to provide if downsampling reads.
  */
 private class BaseQualityRecalibration(
   val input: RDD[AlignmentRecord],
   val knownSnps: Broadcast[SnpTable],
-  val recordGroups: RecordGroupDictionary,
+  val readGroups: ReadGroupDictionary,
   val minAcceptableAsciiPhred: Char = (5 + 33).toChar,
-  val optStorageLevel: Option[StorageLevel] = None)
+  val optStorageLevel: Option[StorageLevel] = None,
+  val optSamplingFraction: Option[Double] = None,
+  val optSamplingSeed: Option[Long] = None)
     extends Serializable with Logging {
 
   /**
@@ -68,7 +73,7 @@ private class BaseQualityRecalibration(
   val dataset: RDD[(AlignmentRecord, Array[CovariateKey])] = {
     val covRdd = input.map(read => {
       val covariates = if (BaseQualityRecalibration.shouldIncludeRead(read)) {
-        BaseQualityRecalibration.observe(read, knownSnps, recordGroups)
+        BaseQualityRecalibration.observe(read, knownSnps, readGroups)
       } else {
         Array.empty[CovariateKey]
       }
@@ -85,7 +90,13 @@ private class BaseQualityRecalibration(
    * A table containing the error frequency observations for the given reads.
    */
   val observed: ObservationTable = {
-    val observations = dataset.flatMap(p => p._2).flatMap(cov => {
+    val maybeSampledDataset = optSamplingFraction.fold(dataset)(samplingFraction => {
+      optSamplingSeed.fold(dataset.sample(false, samplingFraction))(samplingSeed => {
+        dataset.sample(false, samplingFraction, seed = samplingSeed)
+      })
+    })
+
+    val observations = maybeSampledDataset.flatMap(p => p._2).flatMap(cov => {
       if (cov.shouldInclude) {
         Some((cov.toDefault, Observation(cov.isMismatch)))
       } else {
@@ -117,8 +128,8 @@ private[read] object BaseQualityRecalibration {
    */
   private def shouldIncludeRead(read: AlignmentRecord) = {
     (read.getReadMapped && read.getPrimaryAlignment && !read.getDuplicateRead) &&
-      read.getQual != null &&
-      (read.getMapq != null && read.getMapq > 0) &&
+      read.getQuality != null &&
+      (read.getMappingQuality != null && read.getMappingQuality > 0) &&
       (read.getCigar != null && read.getCigar != "*") &&
       !read.getFailedVendorQualityChecks
   }
@@ -136,7 +147,7 @@ private[read] object BaseQualityRecalibration {
   private def computeResiduesToInclude(read: AlignmentRecord,
                                        maskedSites: Set[Long]): (Array[Boolean], Array[Boolean]) = {
     val readSequence = read.getSequence.toArray
-    val readQualities = read.getQual.toArray
+    val readQualities = read.getQuality.toArray
     val shouldInclude = new Array[Boolean](readSequence.length)
     val isMismatch = new Array[Boolean](readSequence.length)
     val readCigar = TextCigarCodec.decode(read.getCigar)
@@ -279,7 +290,7 @@ private[read] object BaseQualityRecalibration {
    * Observes the error covariates contained in a read.
    *
    * @param read The read to observe.
-   * @param recordGroups A record group dictionary containing the read group
+   * @param readGroups A read group dictionary containing the read group
    *   this read is from.
    * @param maskedSites The known SNP loci that this read covers.
    * @return Returns an array of CovariateKeys that describe the per-base
@@ -291,7 +302,7 @@ private[read] object BaseQualityRecalibration {
    */
   private[recalibration] def observe(
     read: AlignmentRecord,
-    recordGroups: RecordGroupDictionary,
+    readGroups: ReadGroupDictionary,
     maskedSites: Set[Long] = Set.empty): Array[CovariateKey] = ObservingRead.time {
     val (toInclude, isMismatch) = ReadResidues.time {
       computeResiduesToInclude(read, maskedSites)
@@ -300,7 +311,7 @@ private[read] object BaseQualityRecalibration {
       CovariateSpace(read,
         toInclude,
         isMismatch,
-        recordGroups)
+        readGroups)
     }
   }
 
@@ -309,7 +320,7 @@ private[read] object BaseQualityRecalibration {
    *
    * @param read The read to observe.
    * @param knownSnps A broadcast variable containing all known SNP loci to mask.
-   * @param recordGroups A record group dictionary containing the read group
+   * @param readGroups A read group dictionary containing the read group
    *   this read is from.
    * @return Returns an array of CovariateKeys that describe the per-base
    *   error covariates seen in this read.
@@ -317,10 +328,10 @@ private[read] object BaseQualityRecalibration {
   private def observe(
     read: AlignmentRecord,
     knownSnps: Broadcast[SnpTable],
-    recordGroups: RecordGroupDictionary): Array[CovariateKey] = ObservingRead.time {
+    readGroups: ReadGroupDictionary): Array[CovariateKey] = ObservingRead.time {
     val maskedSites = knownSnps.value
       .maskedSites(ReferenceRegion.unstranded(read))
-    observe(read, recordGroups, maskedSites)
+    observe(read, readGroups, maskedSites)
   }
 
   /**
@@ -329,24 +340,35 @@ private[read] object BaseQualityRecalibration {
    * @param rdd The reads to recalibrate.
    * @param knownSnps A broadcast table of known variation to mask during the
    *   recalibration process.
-   * @param recordGroups The read groups that generated these reads.
+   * @param readGroups The read groups that generated these reads.
    * @param minAcceptableQuality The minimum quality score to attempt to
    *   recalibrate.
    * @param optStorageLevel An optional storage level to apply if caching the
-   *   output of the first stage of BQSR.
+   *   output of the first stage of BQSR
+   * @param optSamplingFraction An optional fraction of reads to sample when
+   *   generating the covariate table.
+   * @param optSamplingSeed An optional seed to provide if downsampling reads.
    */
   def apply(
     rdd: RDD[AlignmentRecord],
     knownSnps: Broadcast[SnpTable],
-    recordGroups: RecordGroupDictionary,
+    readGroups: ReadGroupDictionary,
     minAcceptableQuality: Int,
-    optStorageLevel: Option[StorageLevel]): RDD[AlignmentRecord] = {
+    optStorageLevel: Option[StorageLevel],
+    optSamplingFraction: Option[Double] = None,
+    optSamplingSeed: Option[Long] = None): RDD[AlignmentRecord] = {
     require(minAcceptableQuality >= 0 && minAcceptableQuality < 93,
       "MinAcceptableQuality (%d) must be positive and less than 93.")
+    optSamplingFraction.foreach(samplingFraction => {
+      require(samplingFraction > 0.0 && samplingFraction <= 1.0,
+        "Sampling fraction (%d) must be greater than 0.0 and less than or equal to 1.0.")
+    })
     new BaseQualityRecalibration(rdd,
       knownSnps,
-      recordGroups,
+      readGroups,
       (minAcceptableQuality + 33).toChar,
-      optStorageLevel).result
+      optStorageLevel,
+      optSamplingFraction,
+      optSamplingSeed).result
   }
 }

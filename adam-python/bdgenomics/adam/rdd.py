@@ -15,9 +15,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+r"""
+===
+rdd
+===
+.. currentmodule:: bdgenomics.adam.rdd
+.. autosummary::
+   :toctree: _generate/
+
+   GenomicDataset
+   VCFSupportingGenomicDataset
+   AlignmentRecordRDD
+   CoverageRDD
+   FeatureRDD
+   FragmentRDD
+   GenotypeRDD
+   NucleotideContigFragmentRDD
+   VariantRDD
+   VariantContextRDD
+"""
 
 import logging
 
+from py4j.java_gateway import get_java_class
 from pyspark.rdd import RDD
 from pyspark.sql import DataFrame, SQLContext
 
@@ -25,16 +45,18 @@ from bdgenomics.adam.stringency import LENIENT, _toJava
 
 _log = logging.getLogger(__name__)
 
-class GenomicRDD(object):
-
+class GenomicDataset(object):
+    """
+    Wraps an RDD of genomic data with helpful metadata.
+    """
 
     def __init__(self, jvmRdd, sc):
         """
-        Constructs a Python GenomicRDD from a JVM GenomicRDD.
+        Constructs a Python GenomicDataset from a JVM GenomicDataset.
         Should not be called from user code; should only be called from
         implementing classes.
 
-        :param jvmRdd: Py4j handle to the underlying JVM GenomicRDD.
+        :param jvmRdd: Py4j handle to the underlying JVM GenomicDataset.
         :param pyspark.context.SparkContext sc: Active Spark Context.
         """
 
@@ -42,12 +64,49 @@ class GenomicRDD(object):
         self.sc = sc
 
 
+    def cache(self):
+        """
+        Caches underlying RDD in memory.
+
+        :return: Returns a new, cached RDD.
+        """
+
+        return self._replaceRdd(self._jvmRdd.cache())
+
+
+    def persist(self, sl):
+        """
+        Persists underlying RDD in memory or disk.
+
+        :param sl new StorageLevel
+        :return: Returns a new, persisted RDD.
+        """
+
+        jsl = self.sc._jvm.org.apache.spark.api.java.StorageLevels.create(sl.useDisk,
+                                                                          sl.useMemory,
+                                                                          sl.useOffHeap,
+                                                                          sl.deserialized,
+                                                                          sl.replication)
+
+        return self._replaceRdd(self._jvmRdd.persist(jsl))
+
+
+    def unpersist(self):
+        """
+        Unpersists underlying RDD from memory or disk.
+
+        :return: Returns a new, unpersisted RDD.
+        """
+
+        return self._replaceRdd(self._jvmRdd.unpersist())
+
+
     def sort(self):
         """
         Sorts our genome aligned data by reference positions, with contigs ordered
         by index.
 
-        :return: Returns a new, sorted RDD, of the implementing class type.
+        :return: Returns a new, sorted genomic dataset, of the implementing class type.
         """
 
         return self._replaceRdd(self._jvmRdd.sort())
@@ -58,20 +117,51 @@ class GenomicRDD(object):
         Sorts our genome aligned data by reference positions, with contigs ordered
         lexicographically
 
-        :return: Returns a new, sorted RDD, of the implementing class type.
+        :return: Returns a new, sorted genomic dataset, of the implementing class type.
         """
 
         return self._replaceRdd(self._jvmRdd.sortLexicographically())
 
 
+    def filterByOverlappingRegion(self, query):
+        """
+        Runs a filter that selects data in the underlying RDD that overlaps a
+        single genomic region.
+
+        :param query The region to query for.
+        :return Returns a new GenomicDataset containing only data that overlaps the
+           query region.
+        """
+
+        # translate reference regions into jvm types
+        javaRr = query._toJava(self.sc._jvm)
+
+        return self._replaceRdd(self._jvmRdd.filterByOverlappingRegion(javaRr))
+
+    def filterByOverlappingRegions(self, querys):
+        """
+        Runs a filter that selects data in the underlying RDD that overlaps a
+        several genomic regions.
+
+        :param list<ReferenceRegion> querys: List of ReferenceRegion to
+        filter on.
+        :return Returns a new GenomicDataset containing only data that overlaps the
+           query regions.
+        """
+
+        # translate reference regions into iterator of jvm types
+        javaRrs = iter([q._toJava(self.sc._jvm) for q in querys])
+
+        return self._replaceRdd(self._jvmRdd.filterByOverlappingRegions(javaRrs))
+
     def union(self, rdds):
         """
-        Unions together multiple RDDs.
+        Unions together multiple genomic datasets.
 
         :param list rdds: The RDDs to union into this RDD.
         :return: Returns a new RDD containing the union of this RDD and the other RDDs.
         """
-        
+
 
         return self._replaceRdd(self._jvmRdd.union(map(lambda x: x._jvmRdd,
                                                        rdds)))
@@ -87,33 +177,33 @@ class GenomicRDD(object):
         jvm = self.sc._jvm
         return jvm.org.bdgenomics.adam.api.python.DataFrameConversionWrapper(newDf._jdf)
 
-        
+
     def transform(self, tFn):
         """
         Applies a function that transforms the underlying DataFrame into a new DataFrame
         using the Spark SQL API.
 
-        :param function tFn: A function that transforms the underlying RDD as a DataFrame.
-        :return: A new RDD where the RDD of genomic data has been replaced, but the
+        :param function tFn: A function that transforms the underlying DataFrame as a DataFrame.
+        :return: A new genomic dataset where the DataFrame of genomic data has been replaced, but the
         metadata (sequence dictionary, and etc) is copied without modification.
         """
 
         # apply the lambda to the underlying DF
         dfFn = self._wrapTransformation(tFn)
-        
+
         return self._replaceRdd(self._jvmRdd.transformDataFrame(dfFn))
 
 
     def transmute(self, tFn, destClass, convFn=None):
         """
-        Applies a function that transmutes the underlying DataFrame into a new RDD of a
+        Applies a function that transmutes the underlying DataFrame into a new genomic dataset of a
         different type.
 
-        :param function tFn: A function that transforms the underlying RDD as a DataFrame.
+        :param function tFn: A function that transforms the underlying DataFrame as a DataFrame.
         :param str convFn: The name of the ADAM GenomicDatasetConversion class to
         use.
         :param class destClass: The destination class of this transmutation.
-        :return: A new RDD where the RDD of genomic data has been replaced, but the
+        :return: A new genomic dataset where the DataFrame of genomic data has been replaced, but the
         metadata (sequence dictionary, and etc) is copied without modification.
         """
 
@@ -126,8 +216,7 @@ class GenomicRDD(object):
 
         # create an instance of the conversion
         jvm = self.sc._jvm
-        convFnClass = jvm.java.lang.Class.forName(convFn)
-        convFnInst = convFnClass.newInstance()
+        convFnInst = getattr(jvm, convFn)()
 
         return destClass(self._jvmRdd.transmuteDataFrame(dfFn, convFnInst), self.sc)
 
@@ -139,24 +228,24 @@ class GenomicRDD(object):
 
     def _destClassSuffix(self, destClass):
 
-        if destClass is NucleotideContigFragmentRDD:
+        if destClass is NucleotideContigFragmentDataset:
             return "ContigsDatasetConverter"
-        elif destClass is CoverageRDD:
+        elif destClass is CoverageDataset:
             return "CoverageDatasetConverter"
-        elif destClass is FeatureRDD:
+        elif destClass is FeatureDataset:
             return "FeaturesDatasetConverter"
-        elif destClass is FragmentRDD:
+        elif destClass is FragmentDataset:
             return "FragmentDatasetConverter"
-        elif destClass is AlignmentRecordRDD:
+        elif destClass is AlignmentRecordDataset:
             return "AlignmentRecordDatasetConverter"
-        elif destClass is GenotypeRDD:
+        elif destClass is GenotypeDataset:
             return "GenotypeDatasetConverter"
-        elif destClass is VariantRDD:
+        elif destClass is VariantDataset:
             return "VariantDatasetConverter"
         else:
             raise ValueError("No conversion method known for %s." % destClass)
 
-        
+
     def pipe(self,
              cmd,
              tFormatter,
@@ -167,22 +256,22 @@ class GenomicRDD(object):
              flankSize=0):
         """
         Pipes genomic data to a subprocess that runs in parallel using Spark.
-        
+
         Files are substituted in to the command with a $x syntax. E.g., to invoke
         a command that uses the first file from the files Seq, use $0. To access
         the path to the directory where the files are copied, use $root.
-        
+
         Pipes require the presence of an InFormatterCompanion and an OutFormatter
         as implicit values. The InFormatterCompanion should be a singleton whose
-        apply method builds an InFormatter given a specific type of GenomicRDD.
+        apply method builds an InFormatter given a specific type of GenomicDataset.
         The implicit InFormatterCompanion yields an InFormatter which is used to
         format the input to the pipe, and the implicit OutFormatter is used to
         parse the output from the pipe.
 
-        :param str cmd: The command to run.
+        :param list cmd: The command to run.
         :param str tFormatter: The name of the ADAM in-formatter class to use.
         :param str xFormatter: The name of the ADAM out-formatter class to use.
-        :param str convFn: The name of the ADAM GenomicRDD conversion class to
+        :param str convFn: The name of the ADAM GenomicDataset conversion class to
         use.
         :param list files: The files to copy locally onto all executors. Set to
         None (default) to omit.
@@ -190,20 +279,18 @@ class GenomicRDD(object):
         executor. Set to None (default) to omit.
         :param int flankSize: The number of bases of flanking sequence to have
         around each partition. Defaults to 0.
-        :return: Returns a new RDD where the input from the original RDD has
+        :return: Returns a new genomic dataset where the input from the original genomic dataset has
         been piped through a command that runs locally on each executor.
         """
 
         jvm = self.sc._jvm
 
-        tFormatterClass = jvm.java.lang.Class.forName(tFormatter)
-        
-        xFormatterClass = jvm.java.lang.Class.forName(xFormatter)
-        xFormatterInst = xFormatterClass.newInstance()
+        tFormatterClass = get_java_class(getattr(jvm, tFormatter))
 
-        convFnClass = jvm.java.lang.Class.forName(convFn)
-        convFnInst = convFnClass.newInstance()
-        
+        xFormatterInst = getattr(jvm, xFormatter)()
+
+        convFnInst = getattr(jvm, convFn)()
+
         if files is None:
             files = []
 
@@ -218,33 +305,550 @@ class GenomicRDD(object):
                                                   xFormatterInst,
                                                   convFnInst))
 
+
+    def broadcastRegionJoin(self, genomicRdd, flankSize=0):
+        """
+        Performs a broadcast inner join between this genomic dataset and another genomic dataset.
+
+        In a broadcast join, the left genomic dataset (this genomic dataset) is collected to the driver,
+        and broadcast to all the nodes in the cluster. The key equality function
+        used for this join is the reference region overlap function. Since this
+        is an inner join, all values who do not overlap a value from the other
+        genomic dataset are dropped.
     
-class GenomicDataset(GenomicRDD):
+        :param GenomicDataset genomicRdd: The right genomic dataset in the join.
+        :param int flankSize: Sets a flankSize for the distance between elements to be
+          joined. If set to 0, an overlap is required to join two elements.
+        :return: Returns a new genomic dataset containing all pairs of keys that
+          overlapped in the genomic coordinate space.
+        """
+
+        return GenomicDataset(self._jvmRdd.broadcastRegionJoin(genomicRdd._jvmRdd,
+                                                               flankSize),
+                              self.sc)
 
 
-    def __init__(self, jvmRdd, sc):
-
-        GenomicRDD.__init__(self, jvmRdd, sc)
-
+    def rightOuterBroadcastRegionJoin(self, genomicRdd, flankSize=0):
+        """
+        Performs a broadcast right outer join between this genomic dataset and another genomic dataset.
         
+        In a broadcast join, the left genomic dataset (this genomic dataset) is collected to the driver,
+        and broadcast to all the nodes in the cluster. The key equality function
+        used for this join is the reference region overlap function. Since this
+        is a right outer join, all values in the left genomic dataset that do not overlap a
+        value from the right genomic dataset are dropped. If a value from the right genomic dataset does
+        not overlap any values in the left genomic dataset, it will be paired with a `None`
+        in the product of the join.
+
+        :param GenomicDataset genomicRdd: The right genomic dataset in the join.
+        :param int flankSize: Sets a flankSize for the distance between elements to be
+          joined. If set to 0, an overlap is required to join two elements.
+        :return: Returns a new genomic dataset containing all pairs of keys that
+          overlapped in the genomic coordinate space, and all keys from the
+          right genomic dataset that did not overlap a key in the left genomic dataset.
+        """
+
+        return GenomicDataset(self._jvmRdd.rightOuterBroadcastRegionJoin(genomicRdd._jvmRdd,
+                                                                         flankSize),
+                              self.sc)
+
+
+    def broadcastRegionJoinAndGroupByRight(self, genomicRdd, flankSize=0):
+        """
+        Performs a broadcast inner join between this genomic dataset and another genomic dataset.
+
+        In a broadcast join, the left genomic dataset (this genomic dataset) is collected to the driver,
+        and broadcast to all the nodes in the cluster. The key equality function
+        used for this join is the reference region overlap function. Since this
+        is an inner join, all values who do not overlap a value from the other
+        genomic dataset are dropped.
+
+        :param GenomicDataset genomicRdd: The right genomic dataset in the join.
+        :param int flankSize: Sets a flankSize for the distance between elements to be
+          joined. If set to 0, an overlap is required to join two elements.
+        :return: Returns a new genomic dataset containing all pairs of keys that
+          overlapped in the genomic coordinate space.
+        """
+
+        return GenomicDataset(self._jvmRdd.broadcastRegionJoinAndGroupByRight(genomicRdd._jvmRdd,
+                                                                              flankSize),
+                              self.sc)
+
+
+    def rightOuterBroadcastRegionJoinAndGroupByRight(self, genomicRdd, flankSize=0):
+        """
+        Performs a broadcast right outer join between this genomic dataset and another genomic dataset.
+        In a broadcast join, the left side of the join (broadcastTree) is broadcast to
+        to all the nodes in the cluster. The key equality function
+        used for this join is the reference region overlap function. Since this
+        is a right outer join, all values in the left genomic dataset that do not overlap a
+        value from the right genomic dataset are dropped. If a value from the right genomic dataset does
+        not overlap any values in the left genomic dataset, it will be paired with a `None`
+        in the product of the join.
+
+        :param GenomicDataset genomicRdd: The right genomic dataset in the join.
+        :param int flankSize: Sets a flankSize for the distance between elements to be
+          joined. If set to 0, an overlap is required to join two elements.
+        :return: Returns a new genomic dataset containing all pairs of keys that
+          overlapped in the genomic coordinate space, and all keys from the
+          right genomic dataset that did not overlap a key in the left genomic dataset.
+        """
+
+        return GenomicDataset(self._jvmRdd.rightOuterBroadcastRegionJoinAndGroupByRight(genomicRdd._jvmRdd,
+                                                                                        flankSize),
+                              self.sc)
+
+
+    def shuffleRegionJoin(self, genomicRdd, flankSize=0):
+        """
+        Performs a sort-merge inner join between this genomic dataset and another genomic dataset.
+
+        In a sort-merge join, both genomic datasets are co-partitioned and sorted. The
+        partitions are then zipped, and we do a merge join on each partition.
+        The key equality function used for this join is the reference region
+        overlap function. Since this is an inner join, all values who do not
+        overlap a value from the other genomic dataset are dropped.
+
+        :param GenomicDataset genomicRdd: The right genomic dataset in the join.
+        :param int flankSize: Sets a flankSize for the distance between elements to be
+          joined. If set to 0, an overlap is required to join two elements.
+        :return: Returns a new genomic dataset containing all pairs of keys that
+          overlapped in the genomic coordinate space.
+        """
+
+        return GenomicDataset(self._jvmRdd.shuffleRegionJoin(genomicRdd._jvmRdd, flankSize),
+                              self.sc)
+
+
+    def rightOuterShuffleRegionJoin(self, genomicRdd, flankSize=0):
+        """
+        Performs a sort-merge right outer join between this genomic dataset and another genomic dataset.
+
+        In a sort-merge join, both genomic datasets are co-partitioned and sorted. The
+        partitions are then zipped, and we do a merge join on each partition.
+        The key equality function used for this join is the reference region
+        overlap function. Since this is a right outer join, all values in the
+        left genomic dataset that do not overlap a value from the right genomic dataset are dropped.
+        If a value from the right genomic dataset does not overlap any values in the left
+        genomic dataset, it will be paired with a `None` in the product of the join.
+
+        :param GenomicDataset genomicRdd: The right genomic dataset in the join.
+        :param int flankSize: Sets a flankSize for the distance between elements to be
+          joined. If set to 0, an overlap is required to join two elements.
+        :return: Returns a new genomic dataset containing all pairs of keys that
+          overlapped in the genomic coordinate space, and all keys from the
+          right genomic dataset that did not overlap a key in the left genomic dataset.
+        """
+
+        return GenomicDataset(self._jvmRdd.rightOuterShuffleRegionJoin(genomicRdd._jvmRdd, flankSize),
+                              self.sc)
+
+
+    def leftOuterShuffleRegionJoin(self, genomicRdd, flankSize=0):
+        """
+        Performs a sort-merge left outer join between this genomic dataset and another genomic dataset.
+
+        In a sort-merge join, both genomic datasets are co-partitioned and sorted. The
+        partitions are then zipped, and we do a merge join on each partition.
+        The key equality function used for this join is the reference region
+        overlap function. Since this is a left outer join, all values in the
+        right genomic dataset that do not overlap a value from the left genomic dataset are dropped.
+        If a value from the left genomic dataset does not overlap any values in the right
+        genomic dataset, it will be paired with a `None` in the product of the join.
+
+        :param GenomicDataset genomicRdd: The right genomic dataset in the join.
+        :param int flankSize: Sets a flankSize for the distance between elements to be
+          joined. If set to 0, an overlap is required to join two elements.
+        :return: Returns a new genomic dataset containing all pairs of keys that
+          overlapped in the genomic coordinate space, and all keys from the
+          left genomic dataset that did not overlap a key in the left genomic dataset.
+        """
+
+        return GenomicDataset(self._jvmRdd.leftOuterShuffleRegionJoin(genomicRdd._jvmRdd, flankSize),
+                              self.sc)
+
+
+    def leftOuterShuffleRegionJoinAndGroupByLeft(self, genomicRdd, flankSize=0):
+        """
+        Performs a sort-merge left outer join between this genomic dataset and another genomic dataset,
+        followed by a groupBy on the left value.
+
+        In a sort-merge join, both genomic datasets are co-partitioned and sorted. The
+        partitions are then zipped, and we do a merge join on each partition.
+        The key equality function used for this join is the reference region
+        overlap function. Since this is a left outer join, all values in the
+        right genomic dataset that do not overlap a value from the left genomic dataset are dropped.
+        If a value from the left genomic dataset does not overlap any values in the right
+        genomic dataset, it will be paired with an empty Iterable in the product of the join.
+
+        :param GenomicDataset genomicRdd: The right genomic dataset in the join.
+        :param int flankSize: Sets a flankSize for the distance between elements to be
+          joined. If set to 0, an overlap is required to join two elements.
+        :return: Returns a new genomic dataset containing all pairs of keys that
+          overlapped in the genomic coordinate space, and all keys from the
+          left genomic dataset that did not overlap a key in the left genomic dataset.
+        """
+
+        return GenomicDataset(self._jvmRdd.leftOuterShuffleRegionJoinAndGroupByLeft(genomicRdd._jvmRdd, flankSize),
+                              self.sc)
+
+
+    def fullOuterShuffleRegionJoin(self, genomicRdd, flankSize=0):
+        """
+        Performs a sort-merge full outer join between this genomic dataset and another genomic dataset.
+
+        In a sort-merge join, both genomic datasets are co-partitioned and sorted. The
+        partitions are then zipped, and we do a merge join on each partition.
+        The key equality function used for this join is the reference region
+        overlap function. Since this is a full outer join, if a value from either
+        genomic dataset does not overlap any values in the other genomic dataset, it will be paired with
+        a `None` in the product of the join.
+
+        :param GenomicDataset genomicRdd: The right genomic dataset in the join.
+        :param int flankSize: Sets a flankSize for the distance between elements to be
+          joined. If set to 0, an overlap is required to join two elements.
+        :return: Returns a new genomic dataset containing all pairs of keys that
+          overlapped in the genomic coordinate space, and values that did not
+          overlap will be paired with a `None`.
+        """
+
+        return GenomicDataset(self._jvmRdd.fullOuterShuffleRegionJoin(genomicRdd._jvmRdd, flankSize),
+                              self.sc)
+
+
+    def rightOuterShuffleRegionJoinAndGroupByLeft(self, genomicRdd, flankSize=0):
+        """
+        Performs a sort-merge right outer join between this genomic dataset and another genomic dataset,
+        followed by a groupBy on the left value, if not null.
+
+        In a sort-merge join, both genomic datasets are co-partitioned and sorted. The
+        partitions are then zipped, and we do a merge join on each partition.
+        The key equality function used for this join is the reference region
+        overlap function. In the same operation, we group all values by the left
+        item in the genomic dataset. Since this is a right outer join, all values from the
+        right genomic dataset who did not overlap a value from the left genomic dataset are placed into
+        a length-1 Iterable with a `None` key.
+
+        :param GenomicDataset genomicRdd: The right genomic dataset in the join.
+        :param int flankSize: Sets a flankSize for the distance between elements to be
+          joined. If set to 0, an overlap is required to join two elements.
+        :return: Returns a new genomic dataset containing all pairs of keys that
+          overlapped in the genomic coordinate space, grouped together by
+          the value they overlapped in the left genomic dataset, and all values from the
+          right genomic dataset that did not overlap an item in the left genomic dataset.
+        """
+
+        return GenomicDataset(self._jvmRdd.rightOuterShuffleRegionJoinAndGroupByLeft(genomicRdd._jvmRdd, flankSize),
+                              self.sc)
+
+
+    def shuffleRegionJoinAndGroupByLeft(self, genomicRdd, flankSize=0):
+        """
+        Performs a sort-merge inner join between this genomic dataset and another genomic dataset,
+        followed by a groupBy on the left value.
+
+        In a sort-merge join, both genomic datasets are co-partitioned and sorted. The
+        partitions are then zipped, and we do a merge join on each partition.
+        The key equality function used for this join is the reference region
+        overlap function. In the same operation, we group all values by the left
+        item in the genomic dataset.
+
+        :param GenomicDataset genomicRdd: The right genomic dataset in the join.
+        :param int flankSize: Sets a flankSize for the distance between elements to be
+          joined. If set to 0, an overlap is required to join two elements.
+        :return: Returns a new genomic dataset containing all pairs of keys that
+          overlapped in the genomic coordinate space, grouped together by
+          the value they overlapped in the left genomic dataset.
+        """
+
+        return GenomicDataset(self._jvmRdd.shuffleRegionJoinAndGroupByLeft(genomicRdd._jvmRdd, flankSize),
+                              self.sc)
+
+
     def toDF(self):
         """
-        :return: Returns a dataframe representing this RDD.
+        Converts this GenomicDataset into a DataFrame.
+        :return: Returns a dataframe representing this genomic dataset.
         """
-        
+
         return DataFrame(self._jvmRdd.toDF(), SQLContext(self.sc))
 
 
-class AlignmentRecordRDD(GenomicDataset):
-
+class VCFSupportingGenomicDataset(GenomicDataset):
+    """
+    Wraps an GenomicDataset with VCF metadata.
+    """
 
     def __init__(self, jvmRdd, sc):
         """
-        Constructs a Python AlignmentRecordRDD from a JVM AlignmentRecordRDD.
+        Constructs a Python GenomicDataset from a JVM GenomicDataset.
+        Should not be called from user code; should only be called from
+        implementing classes.
+
+        :param jvmRdd: Py4j handle to the underlying JVM GenomicDataset.
+        :param pyspark.context.SparkContext sc: Active Spark Context.
+        """
+
+        GenomicDataset.__init__(self, jvmRdd, sc)
+
+
+    def _javaType(self, lineType):
+        """
+        Converts a python type into a VCFHeaderLineType enum.
+
+        :param lineType: A Python type.
+        """
+
+        jvm = self.sc._jvm
+
+        if lineType == str:
+            return jvm.htsjdk.variant.vcf.VCFHeaderLineType.String
+
+        elif lineType == int:
+            return jvm.htsjdk.variant.vcf.VCFHeaderLineType.Integer
+
+        elif lineType == float:
+            return jvm.htsjdk.variant.vcf.VCFHeaderLineType.Float
+
+        elif lineType == chr:
+            return jvm.htsjdk.variant.vcf.VCFHeaderLineType.Character
+
+        elif lineType == bool:
+            return jvm.htsjdk.variant.vcf.VCFHeaderLineType.Flag
+
+        else:
+            raise ValueError('Invalid type {}. Supported types are str, int, float, chr, bool'.format(lineType))
+
+
+    def addFixedArrayFormatHeaderLine(self,
+                                      name,
+                                      count,
+                                      description,
+                                      lineType):
+        """
+        Adds a VCF header line describing an array format field, with fixed count.
+
+        :param str name: The identifier for the field.
+        :param int count: The number of elements in the array.
+        :param str description: A description of the data stored in this format
+        field.
+        :param lineType: A Python primitive type corresponding to the type of
+        data stored in the array. Supported types include str, int, float, and chr.
+        :return: A new genomic dataset with the new header line added.
+        """
+
+        return self._replaceRdd(self._jvmRdd.addFixedArrayFormatHeaderLine(name,
+                                                                           count,
+                                                                           self._javaType(lineType),
+                                                                           description))
+
+
+    def addScalarFormatHeaderLine(self,
+                                  name,
+                                  description,
+                                  lineType):
+        """
+        Adds a VCF header line describing a scalar format field.
+
+        :param str name: The identifier for the field.
+        :param str description: A description of the data stored in this format
+        field.
+        :param lineType: A Python primitive type corresponding to the type of
+        data stored in the array. Supported types include str, int, float, and chr.
+        :return: A new genomic dataset with the new header line added.
+        """
+
+        return self._replaceRdd(self._jvmRdd.addScalarFormatHeaderLine(name,
+                                                                       description,
+                                                                       self._javaType(lineType)))
+
+
+    def addGenotypeArrayFormatHeaderLine(self,
+                                         name,
+                                         description,
+                                         lineType):
+        """
+        Adds a VCF header line describing an 'G' array format field.
+
+        This adds a format field that is an array whose length is equal to the
+        number of genotypes for the genotype we are annotating.
+
+        :param str name: The identifier for the field.
+        :param str description: A description of the data stored in this format
+        field.
+        :param lineType: A Python primitive type corresponding to the type of
+        data stored in the array. Supported types include str, int, float, and chr.
+        :return: A new genomic dataset with the new header line added.
+        """
+
+        return self._replaceRdd(self._jvmRdd.addGenotypeArrayFormatHeaderLine(name,
+                                                                              description,
+                                                                              self._javaType(lineType)))
+
+
+    def addAlternateAlleleArrayFormatHeaderLine(self,
+                                                name,
+                                                description,
+                                                lineType):
+        """
+        Adds a VCF header line describing an 'A' array format field.
+
+        This adds a format field that is an array whose length is equal to the
+        number of alternate alleles for the genotype we are annotating.
+
+        :param str name: The identifier for the field.
+        :param str description: A description of the data stored in this format
+        field.
+        :param lineType: A Python primitive type corresponding to the type of
+        data stored in the array. Supported types include str, int, float, and chr.
+        :return: A new genomic dataset with the new header line added.
+        """
+
+        return self._replaceRdd(self._jvmRdd.addAlternateAlleleArrayFormatHeaderLine(name,
+                                                                                     description,
+                                                                                     self._javaType(lineType)))
+
+
+    def addAllAlleleArrayFormatHeaderLine(self,
+                                          name,
+                                          description,
+                                          lineType):
+        """
+        Adds a VCF header line describing an 'R' array format field.
+
+        This adds a format field that is an array whose length is equal to the
+        total number of alleles (including the reference allele) for the
+        genotype we are annotating.
+
+        :param str name: The identifier for the field.
+        :param str description: A description of the data stored in this format
+        field.
+        :param lineType: A Python primitive type corresponding to the type of
+        data stored in the array. Supported types include str, int, float, and chr.
+        :return: A new genomic dataset with the new header line added.
+        """
+
+        return self._replaceRdd(self._jvmRdd.addAllAlleleArrayFormatHeaderLine(name,
+                                                                               description,
+                                                                               self._javaType(lineType)))
+
+
+    def addFixedArrayInfoHeaderLine(self,
+                                      name,
+                                      count,
+                                      description,
+                                      lineType):
+        """
+        Adds a VCF header line describing an array info field, with fixed count.
+
+        :param str name: The identifier for the field.
+        :param int count: The number of elements in the array.
+        :param str description: A description of the data stored in this info
+        field.
+        :param lineType: A Python primitive type corresponding to the type of
+        data stored in the array. Supported types include str, int, float, and chr.
+        :return: A new genomic dataset with the new header line added.
+        """
+
+        return self._replaceRdd(self._jvmRdd.addFixedArrayInfoHeaderLine(name,
+                                                                         count,
+                                                                         self._javaType(lineType),
+                                                                         description))
+
+
+    def addScalarInfoHeaderLine(self,
+                                  name,
+                                  description,
+                                  lineType):
+        """
+        Adds a VCF header line describing a scalar info field.
+
+        :param str name: The identifier for the field.
+        :param str description: A description of the data stored in this info
+        field.
+        :param lineType: A Python primitive type corresponding to the type of
+        data stored in the array. Supported types include str, int, float, and chr.
+        :return: A new genomic dataset with the new header line added.
+        """
+
+        return self._replaceRdd(self._jvmRdd.addScalarInfoHeaderLine(name,
+                                                                     description,
+                                                                     self._javaType(lineType)))
+
+
+    def addAlternateAlleleArrayInfoHeaderLine(self,
+                                                name,
+                                                description,
+                                                lineType):
+        """
+        Adds a VCF header line describing an 'A' array info field.
+
+        This adds a info field that is an array whose length is equal to the
+        number of alternate alleles for the genotype we are annotating.
+
+        :param str name: The identifier for the field.
+        :param str description: A description of the data stored in this info
+        field.
+        :param lineType: A Python primitive type corresponding to the type of
+        data stored in the array. Supported types include str, int, float, and chr.
+        :return: A new genomic dataset with the new header line added.
+        """
+
+        return self._replaceRdd(self._jvmRdd.addAlternateAlleleArrayInfoHeaderLine(name,
+                                                                                   description,
+                                                                                   self._javaType(lineType)))
+
+
+    def addAllAlleleArrayInfoHeaderLine(self,
+                                          name,
+                                          description,
+                                          lineType):
+        """
+        Adds a VCF header line describing an 'R' array info field.
+
+        This adds a info field that is an array whose length is equal to the
+        total number of alleles (including the reference allele) for the
+        genotype we are annotating.
+
+        :param str name: The identifier for the field.
+        :param str description: A description of the data stored in this info
+        field.
+        :param lineType: A Python primitive type corresponding to the type of
+        data stored in the array. Supported types include str, int, float, and chr.
+        :return: A new genomic dataset with the new header line added.
+        """
+
+        return self._replaceRdd(self._jvmRdd.addAllAlleleArrayInfoHeaderLine(name,
+                                                                             description,
+                                                                             self._javaType(lineType)))
+
+
+    def addFilterHeaderLine(self,
+                            name,
+                            description):
+        """
+        Adds a VCF header line describing a variant/genotype filter.
+
+        :param str id: The identifier for the filter.
+        :param str description: A description of the filter.
+        :return: A new genomic dataset with the new header line added.
+        """
+
+        return self._replaceRdd(self._jvmRdd.addFilterHeaderLine(name, description))
+
+
+class AlignmentRecordDataset(GenomicDataset):
+    """
+    Wraps an GenomicDataset with Alignment Record metadata and functions.
+    """
+
+    def __init__(self, jvmRdd, sc):
+        """
+        Constructs a Python AlignmentRecordDataset from a JVM AlignmentRecordDataset.
         Should not be called from user code; instead, go through
         bdgenomics.adamContext.ADAMContext.
 
-        :param jvmRdd: Py4j handle to the underlying JVM AlignmentRecordRDD.
+        :param jvmRdd: Py4j handle to the underlying JVM AlignmentRecordDataset.
         :param pyspark.context.SparkContext sc: Active Spark Context.
         """
 
@@ -253,46 +857,46 @@ class AlignmentRecordRDD(GenomicDataset):
 
     def _replaceRdd(self, newRdd):
 
-        return AlignmentRecordRDD(newRdd, self.sc)
+        return AlignmentRecordDataset(newRdd, self.sc)
 
 
     def _inferConversionFn(self, destClass):
 
         return "org.bdgenomics.adam.api.java.AlignmentRecordsTo%s" % self._destClassSuffix(destClass)
-        
-            
+
+
     def toFragments(self):
         """
         Convert this set of reads into fragments.
 
-        :return: Returns a FragmentRDD where all reads have been grouped
+        :return: Returns a FragmentDataset where all reads have been grouped
         together by the original sequence fragment they come from.
-        :rtype: bdgenomics.adam.rdd.FragmentRDD
+        :rtype: bdgenomics.adam.rdd.FragmentDataset
         """
 
-        return FragmentRDD(self._jvmRdd.toFragments(), self.sc)
+        return FragmentDataset(self._jvmRdd.toFragments(), self.sc)
 
 
     def toCoverage(self, collapse = True):
         """
-        Converts this set of reads into a corresponding CoverageRDD.
+        Converts this set of reads into a corresponding CoverageDataset.
 
         :param bool collapse: Determines whether to merge adjacent coverage
         elements with the same score to a single coverage observation.
-        :return: Returns an RDD with observed coverage.
-        :rtype: bdgenomics.adam.rdd.CoverageRDD
+        :return: Returns a genomic dataset with observed coverage.
+        :rtype: bdgenomics.adam.rdd.CoverageDataset
         """
 
-        coverageRDD = CoverageRDD(self._jvmRdd.toCoverage(), self.sc)
+        coverage = CoverageDataset(self._jvmRdd.toCoverage(), self.sc)
         if (collapse):
-            return coverageRDD.collapse()
+            return coverage.collapse()
         else:
-            return coverageRDD
+            return coverage
 
 
     def save(self, filePath, isSorted = False):
         """
-        Saves this RDD to disk, with the type identified by the extension.
+        Saves this genomic dataset to disk, with the type identified by the extension.
 
         :param str filePath: The path to save the file to.
         :param bool isSorted: Whether the file is sorted or not.
@@ -307,7 +911,7 @@ class AlignmentRecordRDD(GenomicDataset):
                   isSorted=False,
                   asSingleFile=False):
         """
-        Saves this RDD to disk as a SAM/BAM/CRAM file.
+        Saves this genomic dataset to disk as a SAM/BAM/CRAM file.
 
         :param str filePath: The path to save the file to.
         :param str asType: The type of file to save. Valid choices are SAM, BAM,
@@ -327,22 +931,22 @@ class AlignmentRecordRDD(GenomicDataset):
 
         self._jvmRdd.saveAsSam(filePath, fileType, asSingleFile, isSorted)
 
-        
+
     def saveAsSamString(self):
         """
-        Converts an RDD into the SAM spec string it represents.
+        Converts a genomic dataset into the SAM spec string it represents.
 
-        This method converts an RDD of AlignmentRecords back to an RDD of
+        This method converts an genomic dataset of AlignmentRecords back to an RDD of
         SAMRecordWritables and a SAMFileHeader, and then maps this RDD into a
         string on the driver that represents this file in SAM.
 
-        :return: A string on the driver representing this RDD of reads in SAM format.
+        :return: A string on the driver representing this genomic dataset of reads in SAM format.
         :rtype: str
         """
-        
+
         return self._jvmRdd.saveAsSamString()
 
-        
+
     def countKmers(self, kmerLength):
         """
         Cuts reads into _k_-mers, and then counts the number of occurrences of each _k_-mer.
@@ -362,29 +966,28 @@ class AlignmentRecordRDD(GenomicDataset):
 
         Sorts reads by the location where they are aligned. Unaligned reads are
         put at the end and sorted by read name. Contigs are ordered
-        lexicographically by name. 
+        lexicographically by name.
 
         :return: Returns a new RDD containing sorted reads.
-        :rtype: bdgenomics.adam.rdd.AlignmentRecordRDD
+        :rtype: bdgenomics.adam.rdd.AlignmentRecordDataset
         """
-        
-        return AlignmentRecordRDD(self._jvmRdd.sortReadsByReferencePosition(),
+        return AlignmentRecordDataset(self._jvmRdd.sortReadsByReferencePosition(),
                                   self.sc)
 
-    
+
     def sortReadsByReferencePositionAndIndex(self):
         """
         Sorts our read data by reference positions, with contigs ordered by index.
 
         Sorts reads by the location where they are aligned. Unaligned reads are
-        put at the end and sorted by read name. Contigs are ordered by index 
+        put at the end and sorted by read name. Contigs are ordered by index
         that they are ordered in the sequence metadata.
 
-        :return: Returns a new RDD containing sorted reads.
-        :rtype: bdgenomics.adam.rdd.AlignmentRecordRDD
+        :return: Returns a new genomic dataset containing sorted reads.
+        :rtype: bdgenomics.adam.rdd.AlignmentRecordDataset
         """
 
-        return AlignmentRecordRDD(self._jvmRdd.sortReadsByReferencePositionAndIndex(),
+        return AlignmentRecordDataset(self._jvmRdd.sortReadsByReferencePositionAndIndex(),
                                   self.sc)
 
 
@@ -392,12 +995,12 @@ class AlignmentRecordRDD(GenomicDataset):
         """
         Marks reads as possible fragment duplicates.
 
-        :return: A new RDD where reads have the duplicate read flag set.
+        :return: A new genomic dataset where reads have the duplicate read flag set.
         Duplicate reads are NOT filtered out.
-        :rtype: bdgenomics.adam.rdd.AlignmentRecordRDD
+        :rtype: bdgenomics.adam.rdd.AlignmentRecordDataset
         """
 
-        return AlignmentRecordRDD(self._jvmRdd.markDuplicates(),
+        return AlignmentRecordDataset(self._jvmRdd.markDuplicates(),
                                   self.sc)
 
 
@@ -408,24 +1011,23 @@ class AlignmentRecordRDD(GenomicDataset):
         Runs base quality score recalibration on a set of reads. Uses a table of
         known SNPs to mask true variation during the recalibration process.
 
-        :param bdgenomics.adam.rdd.VariantRDD knownSnps: A table of known SNPs to mask valid variants.
+        :param bdgenomics.adam.rdd.VariantDataset knownSnps: A table of known SNPs to mask valid variants.
         :param bdgenomics.adam.stringency validationStringency:
         """
-        
-        return AlignmentRecordRDD(self._jvmRdd.recalibrateBaseQualities(knownSnps._jvmRdd,
+        return AlignmentRecordDataset(self._jvmRdd.recalibrateBaseQualities(knownSnps._jvmRdd,
                                                                          _toJava(validationStringency, self.sc._jvm)))
 
-    
+
     def realignIndels(self,
                       isSorted = False,
                       maxIndelSize = 500,
                       maxConsensusNumber = 30,
                       lodThreshold = 5.0,
-                      maxTargetSize = 3000):
+                      maxTargetSize = 3000,
+                      maxReadsPerTarget = 20000,
+                      unclipReads = False):
         """
-        Realigns indels using a concensus-based heuristic.
-        
-        Generates consensuses from reads.
+        Realigns indels using a consensus-based heuristic from reads.
 
         :param bool isSorted: If the input data is sorted, setting this
         parameter to true avoids a second sort.
@@ -437,33 +1039,38 @@ class AlignmentRecordRDD(GenomicDataset):
         realignments are only finalized if the log-odds threshold is exceeded.
         :param int maxTargetSize: The maximum width of a single target region
         for realignment.
-        :return: Returns an RDD of mapped reads which have been realigned.
-        :rtype: bdgenomics.adam.rdd.AlignmentRecordRDD
+        :param int maxReadsPerTarget: Maximum number of reads per target.
+        :param boolean unclipReads: If true, unclips reads prior to realignment.
+        Else, omits clipped bases during realignment.
+        :return: Returns an genomic dataset of mapped reads which have been realigned.
+        :rtype: bdgenomics.adam.rdd.AlignmentRecordDataset
         """
 
         consensusModel = self.sc._jvm.org.bdgenomics.adam.algorithms.consensus.ConsensusGenerator.fromReads()
-        return AlignmentRecordRDD(self._jvmRdd.realignIndels(consensusModel,
-                                                             isSorted,
-                                                             maxIndelSize,
-                                                             maxConsensusNumber,
-                                                             lodThreshold,
-                                                             maxTargetSize),
+        return AlignmentRecordDataset(self._jvmRdd.realignIndels(consensusModel,
+                                                                 isSorted,
+                                                                 maxIndelSize,
+                                                                 maxConsensusNumber,
+                                                                 lodThreshold,
+                                                                 maxTargetSize,
+                                                                 maxReadsPerTarget,
+                                                                 unclipReads),
                                   self.sc)
 
 
-    def realignIndels(self,
-                      knownIndels,
-                      isSorted = False,
-                      maxIndelSize = 500,
-                      maxConsensusNumber = 30,
-                      lodThreshold = 5.0,
-                      maxTargetSize = 3000):
+    def realignIndelsFromKnownIndels(self,
+                                     knownIndels,
+                                     isSorted = False,
+                                     maxIndelSize = 500,
+                                     maxConsensusNumber = 30,
+                                     lodThreshold = 5.0,
+                                     maxTargetSize = 3000,
+                                     maxReadsPerTarget = 20000,
+                                     unclipReads = False):
         """
-        Realigns indels using a concensus-based heuristic.
-        
-        Generates consensuses from prior called INDELs.
+        Realigns indels using a consensus-based heuristic from prior called INDELs.
 
-        :param bdgenomics.adam.rdd.VariantRDD knownIndels: An RDD of previously
+        :param bdgenomics.adam.rdd.VariantDataset knownIndels: An RDD of previously
         called INDEL variants.
         :param bool isSorted: If the input data is sorted, setting this
         parameter to true avoids a second sort.
@@ -475,17 +1082,22 @@ class AlignmentRecordRDD(GenomicDataset):
         realignments are only finalized if the log-odds threshold is exceeded.
         :param int maxTargetSize: The maximum width of a single target region
         for realignment.
-        :return: Returns an RDD of mapped reads which have been realigned.
-        :rtype: bdgenomics.adam.rdd.AlignmentRecordRDD
+        :param int maxReadsPerTarget: Maximum number of reads per target.
+        :param boolean unclipReads: If true, unclips reads prior to realignment.
+        Else, omits clipped bases during realignment.
+        :return: Returns a genomic dataset of mapped reads which have been realigned.
+        :rtype: bdgenomics.adam.rdd.AlignmentRecordDataset
         """
 
-        consensusModel = self.sc._jvm.org.bdgenomics.adam.algorithms.consensus.ConsensusGenerator.fromKnowns(knownIndels._jvmRdd)
-        return AlignmentRecordRDD(self._jvmRdd.realignIndels(consensusModel,
-                                                             isSorted,
-                                                             maxIndelSize,
-                                                             maxConsensusNumber,
-                                                             lodThreshold,
-                                                             maxTargetSize),
+        consensusModel = self.sc._jvm.org.bdgenomics.adam.algorithms.consensus.ConsensusGenerator.fromKnownIndels(knownIndels._jvmRdd, 0)
+        return AlignmentRecordDataset(self._jvmRdd.realignIndels(consensusModel,
+                                                                 isSorted,
+                                                                 maxIndelSize,
+                                                                 maxConsensusNumber,
+                                                                 lodThreshold,
+                                                                 maxTargetSize,
+                                                                 maxReadsPerTarget,
+                                                                 unclipReads),
                                   self.sc)
 
     def flagStat(self):
@@ -506,7 +1118,7 @@ class AlignmentRecordRDD(GenomicDataset):
                           validationStringency = LENIENT):
         """
         Saves these AlignmentRecords to two FASTQ files.
-        
+
         The files are one for the first mate in each pair, and the other for the
         second mate in the pair.
 
@@ -519,11 +1131,11 @@ class AlignmentRecordRDD(GenomicDataset):
         false, writes out reads with the base qualities from the qual field.
         Default is false.
         :param bdgenomics.adam.stringency validationStringency: If strict, throw
-        an exception if any read in this RDD is not accompanied by its mate.
+        an exception if any read in this genomic dataset is not accompanied by its mate.
         :param pyspark.storagelevel.StorageLevel persistLevel: The persistance
         level to cache reads at between passes.
         """
-        
+
         self._jvmRdd.saveAsPairedFastq(fileName1, fileName2,
                                         outputOriginalBaseQualities,
                                         _toJava(validationStringency, self.sc._jvm),
@@ -540,7 +1152,7 @@ class AlignmentRecordRDD(GenomicDataset):
 
         :param str fileName: Path to save files at.
         :param bdgenomics.adam.stringency validationStringency: If strict, throw
-        an exception if any read in this RDD is not accompanied by its mate.
+        an exception if any read in this genomic dataset is not accompanied by its mate.
         :param bool sort: Whether to sort the FASTQ files by read name or not.
         Defaults to false. Sorting the output will recover pair order, if
         desired.
@@ -549,7 +1161,7 @@ class AlignmentRecordRDD(GenomicDataset):
         false, writes out reads with the base qualities from the qual field.
         Default is false.
         """
-        
+
         self._jvmRdd.saveAsFastq(fileName,
                                   outputOriginalBaseQualities,
                                   sort,
@@ -570,37 +1182,39 @@ class AlignmentRecordRDD(GenomicDataset):
         from the pairs.
         :param bdgenomics.adam.stringency validationStringency: How stringently
         to validate the reads.
-        :return: Returns an RDD with the pair information recomputed.
-        :rtype: bdgenomics.adam.rdd.AlignmentRecordRDD
+        :return: Returns a genomic dataset with the pair information recomputed.
+        :rtype: bdgenomics.adam.rdd.AlignmentRecordDataset
         """
-        
-        return AlignmentRecordRDD(self._jvmRdd.reassembleReadPairs(rdd._jrdd,
-                                                                    _toJava(validationStringency, self.sc._jvm)),
-                                  self.sc)
+        return AlignmentRecordDataset(self._jvmRdd.reassembleReadPairs(rdd._jrdd,
+                                                                       _toJava(validationStringency, self.sc._jvm)),
+                                      self.sc)
 
 
-class CoverageRDD(GenomicDataset):
+class CoverageDataset(GenomicDataset):
+    """
+    Wraps an GenomicDataset with Coverage metadata and functions.
+    """
 
 
     def _replaceRdd(self, newRdd):
 
-        return CoverageRDD(newRdd, self.sc)
+        return CoverageDataset(newRdd, self.sc)
 
 
     def __init__(self, jvmRdd, sc):
         """
-        Constructs a Python CoverageRDD from a JVM CoverageRDD.
+        Constructs a Python CoverageDataset from a JVM CoverageDataset.
         Should not be called from user code; instead, go through
         bdgenomics.adamContext.ADAMContext.
 
-        :param jvmRdd: Py4j handle to the underlying JVM CoverageRDD.
+        :param jvmRdd: Py4j handle to the underlying JVM CoverageDataset.
         :param pyspark.context.SparkContext sc: Active Spark Context.
         """
 
         GenomicDataset.__init__(self, jvmRdd, sc)
 
 
-    def save(self, filePath, asSingleFile = False):
+    def save(self, filePath, asSingleFile = False, disableFastConcat = False):
         """
         Saves coverage as feature file.
 
@@ -609,7 +1223,7 @@ class CoverageRDD(GenomicDataset):
         single file.
         """
 
-        self._jvmRdd.save(filePath, asSingleFile)
+        self._jvmRdd.save(filePath, asSingleFile, disableFastConcat)
 
 
     def collapse(self):
@@ -617,26 +1231,26 @@ class CoverageRDD(GenomicDataset):
         Merges adjacent ReferenceRegions with the same coverage value.
 
         This reduces the loss of coverage information while reducing the number
-        of records in the RDD. For example, adjacent records Coverage("chr1", 1,
+        of records in the genomic dataset. For example, adjacent records Coverage("chr1", 1,
         10, 3.0) and Coverage("chr1", 10, 20, 3.0) would be merged into one
         record Coverage("chr1", 1, 20, 3.0).
 
-        :return: An RDD with merged tuples of adjacent sites with same coverage.
-        :rtype: bdgenomics.adam.rdd.CoverageRDD
+        :return: A genomic dataset with merged tuples of adjacent sites with same coverage.
+        :rtype: bdgenomics.adam.rdd.CoverageDataset
         """
 
-        return CoverageRDD(self._jvmRdd.collapse(), self.sc)
+        return CoverageDataset(self._jvmRdd.collapse(), self.sc)
 
-    
+
     def toFeatures(self):
         """
-        Converts CoverageRDD to FeatureRDD.
+        Converts CoverageDataset to FeatureDataset.
 
-        :return: Returns a FeatureRDD from CoverageRDD.
-        :rtype: bdgenomics.adam.rdd.FeatureRDD
+        :return: Returns a FeatureDataset from CoverageDataset.
+        :rtype: bdgenomics.adam.rdd.FeatureDataset
         """
-        
-        return FeatureRDD(self._jvmRdd.toFeatures(), self.sc)
+
+        return FeatureDataset(self._jvmRdd.toFeatures(), self.sc)
 
 
     def coverage(self, bpPerBin = 1):
@@ -648,11 +1262,11 @@ class CoverageRDD(GenomicDataset):
         of each bin is the coverage of the first base pair in that bin.
 
         :param int bpPerBin: Number of bases to combine to one bin.
-        :return: Returns a sparsified CoverageRDD.
-        :rtype: bdgenomics.adam.rdd.CoverageRDD
+        :return: Returns a sparsified CoverageDataset.
+        :rtype: bdgenomics.adam.rdd.CoverageDataset
         """
 
-        return CoverageRDD(self._jvmRdd.coverage(bpPerBin), self.sc)
+        return CoverageDataset(self._jvmRdd.coverage(bpPerBin), self.sc)
 
 
     def aggregatedCoverage(self, bpPerBin = 1):
@@ -664,24 +1278,24 @@ class CoverageRDD(GenomicDataset):
         of each bin is the average coverage of the bases in that bin.
 
         :param int bpPerBin: Number of bases to combine to one bin.
-        :return: Returns a sparsified CoverageRDD.
-        :rtype: bdgenomics.adam.rdd.CoverageRDD
+        :return: Returns a sparsified CoverageDataset.
+        :rtype: bdgenomics.adam.rdd.CoverageDataset
         """
 
-        return CoverageRDD(self._jvmRdd.aggregatedCoverage(bpPerBin), self.sc)
+        return CoverageDataset(self._jvmRdd.aggregatedCoverage(bpPerBin), self.sc)
 
 
     def flatten(self):
         """
-        Gets flattened RDD of coverage, with coverage mapped to each base pair.
+        Gets flattened genomic dataset of coverage, with coverage mapped to each base pair.
 
         The opposite operation of collapse.
 
-        :return: New CoverageRDD of flattened coverage.
-        :rtype: bdgenomics.adam.rdd.CoverageRDD
+        :return: New CoverageDataset of flattened coverage.
+        :rtype: bdgenomics.adam.rdd.CoverageDataset
         """
 
-        return CoverageRDD(self._jvmRdd.flatten(), self.sc)
+        return CoverageDataset(self._jvmRdd.flatten(), self.sc)
 
 
     def _inferConversionFn(self, destClass):
@@ -689,21 +1303,23 @@ class CoverageRDD(GenomicDataset):
         return "org.bdgenomics.adam.api.java.CoverageTo%s" % self._destClassSuffix(destClass)
 
 
-class FeatureRDD(GenomicDataset):
-
+class FeatureDataset(GenomicDataset):
+    """
+    Wraps an GenomicDataset with Feature metadata and functions.
+    """
 
     def _replaceRdd(self, newRdd):
 
-        return FeatureRDD(newRdd, self.sc)
+        return FeatureDataset(newRdd, self.sc)
 
 
     def __init__(self, jvmRdd, sc):
         """
-        Constructs a Python FeatureRDD from a JVM FeatureRDD.
+        Constructs a Python FeatureDataset from a JVM FeatureDataset.
         Should not be called from user code; instead, go through
         bdgenomics.adamContext.ADAMContext.
 
-        :param jvmRdd: Py4j handle to the underlying JVM FeatureRDD.
+        :param jvmRdd: Py4j handle to the underlying JVM FeatureDataset.
         :param pyspark.context.SparkContext sc: Active Spark Context.
         """
 
@@ -729,16 +1345,16 @@ class FeatureRDD(GenomicDataset):
 
         self._jvmRdd.save(filePath, asSingleFile, disableFastConcat)
 
-        
+
     def toCoverage(self):
         """
-        Converts the FeatureRDD to a CoverageRDD.
+        Converts the FeatureDataset to a CoverageDataset.
 
-        :return: Returns a new CoverageRDD.
-        :rtype: bdgenomics.adam.rdd.CoverageRDD.
+        :return: Returns a new CoverageDataset.
+        :rtype: bdgenomics.adam.rdd.CoverageDataset.
         """
 
-        return CoverageRDD(self._jvmRdd.toCoverage(), self.sc)
+        return CoverageDataset(self._jvmRdd.toCoverage(), self.sc)
 
 
     def _inferConversionFn(self, destClass):
@@ -746,48 +1362,50 @@ class FeatureRDD(GenomicDataset):
         return "org.bdgenomics.adam.api.java.FeaturesTo%s" % self._destClassSuffix(destClass)
 
 
-class FragmentRDD(GenomicDataset):
-
+class FragmentDataset(GenomicDataset):
+    """
+    Wraps an GenomicDataset with Fragment metadata and functions.
+    """
 
     def _replaceRdd(self, newRdd):
 
-        return FragmentRDD(newRdd, self.sc)
+        return FragmentDataset(newRdd, self.sc)
 
 
     def __init__(self, jvmRdd, sc):
         """
-        Constructs a Python FragmentRDD from a JVM FragmentRDD.
+        Constructs a Python FragmentDataset from a JVM FragmentDataset.
         Should not be called from user code; instead, go through
         bdgenomics.adamContext.ADAMContext.
 
-        :param jvmRdd: Py4j handle to the underlying JVM FragmentRDD.
+        :param jvmRdd: Py4j handle to the underlying JVM FragmentDataset.
         :param pyspark.context.SparkContext sc: Active Spark Context.
         """
 
         GenomicDataset.__init__(self, jvmRdd, sc)
 
-        
+
     def toReads(self):
         """
-        Splits up the reads in a Fragment, and creates a new RDD.
+        Splits up the reads in a Fragment, and creates a new genomic dataset.
         
-        :return: Returns this RDD converted back to reads.
-        :rtype: bdgenomics.adam.rdd.AlignmentRecordRDD
+        :return: Returns this genomic dataset converted back to reads.
+        :rtype: bdgenomics.adam.rdd.AlignmentRecordDataset
         """
 
-        return AlignmentRecordRDD(self._jvmRdd.toReads(), self.sc)
+        return AlignmentRecordDataset(self._jvmRdd.toReads(), self.sc)
 
 
     def markDuplicates(self):
         """
         Marks reads as possible fragment duplicates.
 
-        :return: A new RDD where reads have the duplicate read flag set.
+        :return: A new genomic dataset where reads have the duplicate read flag set.
         Duplicate reads are NOT filtered out.
-        :rtype: bdgenomics.adam.rdd.FragmentRDD
+        :rtype: bdgenomics.adam.rdd.FragmentDataset
         """
 
-        return FragmentRDD(self._jvmRdd.markDuplicates(), self.sc)
+        return FragmentDataset(self._jvmRdd.markDuplicates(), self.sc)
 
 
     def save(self, filePath):
@@ -805,21 +1423,23 @@ class FragmentRDD(GenomicDataset):
         return "org.bdgenomics.adam.api.java.FragmentsTo%s" % self._destClassSuffix(destClass)
 
 
-class GenotypeRDD(GenomicDataset):
-
+class GenotypeDataset(VCFSupportingGenomicDataset):
+    """
+    Wraps an GenomicDataset with Genotype metadata and functions.
+    """
 
     def _replaceRdd(self, newRdd):
 
-        return GenotypeRDD(newRdd, self.sc)
+        return GenotypeDataset(newRdd, self.sc)
 
 
     def __init__(self, jvmRdd, sc):
         """
-        Constructs a Python GenotypeRDD from a JVM GenotypeRDD.
+        Constructs a Python GenotypeDataset from a JVM GenotypeDataset.
         Should not be called from user code; instead, go through
         bdgenomics.adamContext.ADAMContext.
 
-        :param jvmRdd: Py4j handle to the underlying JVM GenotypeRDD.
+        :param jvmRdd: Py4j handle to the underlying JVM GenotypeDataset.
         :param pyspark.context.SparkContext sc: Active Spark Context.
         """
 
@@ -828,7 +1448,7 @@ class GenotypeRDD(GenomicDataset):
 
     def saveAsParquet(self, filePath):
         """
-        Saves this RDD of genotypes to disk as Parquet.
+        Saves this genomic dataset of genotypes to disk as Parquet.
 
         :param str filePath: Path to save file to.
         """
@@ -842,7 +1462,21 @@ class GenotypeRDD(GenomicDataset):
         """
 
         vcs = self._jvmRdd.toVariantContexts()
-        return VariantContextRDD(vcs, self.sc)
+        return VariantContextDataset(vcs, self.sc)
+
+
+    def toVariants(self, dedupe=False):
+        """
+        Extracts the variants contained in this genomic dataset of genotypes.
+
+        Does not perform any filtering looking at whether the variant was called
+        or not. By default, does not deduplicate variants.
+
+        :param bool dedupe: If true, drops variants described in more than one
+        genotype record.
+        :return: Returns the variants described by this GenotypeDataset.
+        """
+        return VariantDataset(self._jvmRdd.toVariants(dedupe), self.sc)
 
 
     def _inferConversionFn(self, destClass):
@@ -850,21 +1484,23 @@ class GenotypeRDD(GenomicDataset):
         return "org.bdgenomics.adam.api.java.GenotypesTo%s" % self._destClassSuffix(destClass)
 
 
-class NucleotideContigFragmentRDD(GenomicDataset):
-
+class NucleotideContigFragmentDataset(GenomicDataset):
+    """
+    Wraps an GenomicDataset with Nucleotide Contig Fragment metadata and functions.
+    """
 
     def _replaceRdd(self, newRdd):
 
-        return NucleotideContigFragmentRDD(newRdd, self.sc)
+        return NucleotideContigFragmentDataset(newRdd, self.sc)
 
 
     def __init__(self, jvmRdd, sc):
         """
-        Constructs a Python NucleotideContigFragmentRDD from a JVM
-        NucleotideContigFragmentRDD. Should not be called from user code;
+        Constructs a Python NucleotideContigFragmentDataset from a JVM
+        NucleotideContigFragmentDataset. Should not be called from user code;
         instead, go through bdgenomics.adamContext.ADAMContext.
 
-        :param jvmRdd: Py4j handle to the underlying JVM NucleotideContigFragmentRDD.
+        :param jvmRdd: Py4j handle to the underlying JVM NucleotideContigFragmentDataset.
         :param pyspark.context.SparkContext sc: Active Spark Context.
         """
 
@@ -887,24 +1523,23 @@ class NucleotideContigFragmentRDD(GenomicDataset):
 
     def flankAdjacentFragments(self, flankLength):
         """
-        For all adjacent records in the RDD, we extend the records so that the
+        For all adjacent records in the genomic dataset, we extend the records so that the
         adjacent records now overlap by _n_ bases, where _n_ is the flank
         length.
 
         :param int flankLength: The length to extend adjacent records by.
-        :return: Returns the RDD, with all adjacent fragments extended with
+        :return: Returns the genomic dataset, with all adjacent fragments extended with
         flanking sequence.
-        :rtype: bdgenomics.adam.rdd.NucleotideContigFragmentRDD
+        :rtype: bdgenomics.adam.rdd.NucleotideContigFragmentDataset
         """
 
-        return NucleotideContigFragmentRDD(self._jvmRdd.flankAdjacentFragments(flankLength),
-                                           self.sc)
+        return NucleotideContigFragmentDataset(self._jvmRdd.flankAdjacentFragments(flankLength), self.sc)
 
 
     def countKmers(self, kmerLength):
         """
         Counts the k-mers contained in a FASTA contig.
-        
+
         :param int kmerLength: The value of _k_ to use for cutting _k_-mers.
         :return: Returns an RDD containing k-mer/count pairs.
         :rtype: pyspark.rdd.RDD[str,long]
@@ -918,21 +1553,23 @@ class NucleotideContigFragmentRDD(GenomicDataset):
         return "org.bdgenomics.adam.api.java.ContigsTo%s" % self._destClassSuffix(destClass)
 
 
-class VariantRDD(GenomicDataset):
-
+class VariantDataset(VCFSupportingGenomicDataset):
+    """
+    Wraps an GenomicDataset with Variant metadata and functions.
+    """
 
     def _replaceRdd(self, newRdd):
 
-        return VariantRDD(newRdd, self.sc)
+        return VariantDataset(newRdd, self.sc)
 
 
     def __init__(self, jvmRdd, sc):
         """
-        Constructs a Python VariantRDD from a JVM VariantRDD.
+        Constructs a Python VariantDataset from a JVM VariantDataset.
         Should not be called from user code; instead, go through
         bdgenomics.adamContext.ADAMContext.
 
-        :param jvmRdd: Py4j handle to the underlying JVM VariantRDD.
+        :param jvmRdd: Py4j handle to the underlying JVM VariantDataset.
         :param pyspark.context.SparkContext sc: Active Spark Context.
         """
 
@@ -943,14 +1580,14 @@ class VariantRDD(GenomicDataset):
         """
         :return: These variants, converted to variant contexts.
         """
-        
+
         vcs = self._jvmRdd.toVariantContexts()
-        return VariantContextRDD(vcs, self.sc)
-        
+        return VariantContextDataset(vcs, self.sc)
+
 
     def saveAsParquet(self, filePath):
         """
-        Saves this RDD of variants to disk as Parquet.
+        Saves this genomic dataset of variants to disk as Parquet.
 
         :param str filePath: Path to save file to.
         """
@@ -963,26 +1600,28 @@ class VariantRDD(GenomicDataset):
         return "org.bdgenomics.adam.api.java.VariantsTo%s" % self._destClassSuffix(destClass)
 
     
-class VariantContextRDD(GenomicRDD):
-
+class VariantContextDataset(VCFSupportingGenomicDataset):
+    """
+    Wraps an GenomicDataset with Variant Context metadata and functions.
+    """
 
     def _replaceRdd(self, newRdd):
 
-        return VariantContextRDD(newRdd, self.sc)
+        return VariantContextDataset(newRdd, self.sc)
 
 
     def __init__(self, jvmRdd, sc):
         """
-        Constructs a Python VariantContextRDD from a JVM VariantContextRDD.
+        Constructs a Python VariantContextDataset from a JVM VariantContextDataset.
         Should not be called from user code; instead, go through
         bdgenomics.adamContext.ADAMContext.
 
-        :param jvmRdd: Py4j handle to the underlying JVM VariantContextRDD.
+        :param jvmRdd: Py4j handle to the underlying JVM VariantContextDataset.
         :param pyspark.context.SparkContext sc: Active Spark Context.
         """
 
-        GenomicRDD.__init__(self, jvmRdd, sc)
-        
+        VCFSupportingGenomicDataset.__init__(self, jvmRdd, sc)
+
 
     def saveAsVcf(self,
                   filePath,
@@ -991,7 +1630,7 @@ class VariantContextRDD(GenomicRDD):
                   stringency=LENIENT,
                   disableFastConcat=False):
         """
-        Saves this RDD of variants to disk as VCF.
+        Saves this genomic dataset of variants to disk as VCF.
 
         :param str filePath: Path to save file to.
         :param bool asSingleFile: If true, saves the output as a single file

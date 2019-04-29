@@ -23,25 +23,26 @@ import java.io.{
   OutputStreamWriter
 }
 import org.bdgenomics.adam.rdd.{ InFormatter, InFormatterCompanion }
+import org.bdgenomics.adam.sql.{ Feature => FeatureProduct }
 import org.bdgenomics.formats.avro.Feature
 import org.bdgenomics.utils.misc.Logging
 
 /**
  * InFormatter companion that builds a GTFInFormatter to write features in GTF format to a pipe.
  */
-object GTFInFormatter extends InFormatterCompanion[Feature, FeatureRDD, GTFInFormatter] {
+object GTFInFormatter extends InFormatterCompanion[Feature, FeatureProduct, FeatureDataset, GTFInFormatter] {
 
   /**
-   * Apply method for building the GTFInFormatter from a FeatureRDD.
+   * Apply method for building the GTFInFormatter from a FeatureDataset.
    *
-   * @param fRdd FeatureRDD to build from.
+   * @param fRdd FeatureDataset to build from.
    */
-  def apply(fRdd: FeatureRDD): GTFInFormatter = {
+  def apply(fRdd: FeatureDataset): GTFInFormatter = {
     GTFInFormatter()
   }
 }
 
-case class GTFInFormatter private () extends InFormatter[Feature, FeatureRDD, GTFInFormatter] {
+case class GTFInFormatter private () extends InFormatter[Feature, FeatureProduct, FeatureDataset, GTFInFormatter] {
   protected val companion = GTFInFormatter
 
   /**
@@ -55,7 +56,7 @@ case class GTFInFormatter private () extends InFormatter[Feature, FeatureRDD, GT
 
     // write the features
     iter.foreach(f => {
-      writer.write(FeatureRDD.toGtf(f))
+      writer.write(FeatureDataset.toGtf(f))
       writer.newLine()
     })
 

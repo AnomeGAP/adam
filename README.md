@@ -4,6 +4,7 @@ ADAM
 [![Build Status](https://img.shields.io/jenkins/s/https/amplab.cs.berkeley.edu/jenkins/view/Big%20Data%20Genomics/job/ADAM.svg)](https://amplab.cs.berkeley.edu/jenkins/view/Big%20Data%20Genomics/job/ADAM/)
 [![Coverage Status](https://coveralls.io/repos/github/bigdatagenomics/adam/badge.svg?branch=master)](https://coveralls.io/github/bigdatagenomics/adam?branch=master)
 [![Maven Central](https://img.shields.io/maven-central/v/org.bdgenomics.adam/adam-parent-spark2_2.11.svg?maxAge=600)](http://search.maven.org/#search%7Cga%7C1%7Corg.bdgenomics.adam)
+[![API Documentation](http://javadoc.io/badge/org.bdgenomics.adam/adam-core-spark2_2.11.svg?color=brightgreen&label=scaladoc)](http://javadoc.io/doc/org.bdgenomics.adam/adam-core-spark2_2.11)
 
 # Introduction
 
@@ -69,40 +70,24 @@ later installed in order to build ADAM.
 
 > **Note:** The default configuration is for Hadoop 2.7.3. If building against
 > a different version of Hadoop, please pass `-Dhadoop.version=<HADOOP_VERSION>`
-> to the Maven command. ADAM will cross-build for both Spark 1.x and 2.x, but
-> builds by default against Spark 1.6.3 and Scala 2.10. To build for Spark 2,
-> run the `./scripts/move_to_spark_2.sh` script. To build for Scala 2.11, run
-> the `./scripts/move_to_scala_2.11.sh` script.
+> to the Maven command.
 
 ```bash
 $ git clone https://github.com/bigdatagenomics/adam.git
 $ cd adam
-$ mvn clean package -DskipTests
+$ mvn install
 ```
-Outputs
-```
-...
-[INFO] ------------------------------------------------------------------------
-[INFO] BUILD SUCCESS
-[INFO] ------------------------------------------------------------------------
-[INFO] Total time: 9.647s
-[INFO] Finished at: Thu May 23 15:50:42 PDT 2013
-[INFO] Final Memory: 19M/81M
-[INFO] ------------------------------------------------------------------------
-```
-
-You might want to take a peek at the `scripts/jenkins-test` script and give it a run. It will fetch a mouse chromosome, encode it to ADAM
-reads and pileups, run flagstat, etc. We use this script to test that ADAM is working correctly.
 
 ### Installing Spark
 
-You'll need to have a Spark release on your system and the `$SPARK_HOME` environment variable pointing at it; prebuilt binaries can be downloaded from the
-[Spark website](http://spark.apache.org/downloads.html). Currently, our continuous builds default to
-[Spark 1.6.1 built against Hadoop 2.6](http://d3kbcqa49mib13.cloudfront.net/spark-1.6.1-bin-hadoop2.6.tgz), but any more recent Spark distribution should also work.
+You'll need to have a Spark release on your system and the `$SPARK_HOME` environment variable pointing at it;
+prebuilt binaries can be downloaded from the [Spark website](http://spark.apache.org/downloads.html).
 
 # Documentation
 
-ADAM's documentation is hosted at [readthedocs](http://adam.readthedocs.io).
+ADAM's documentation is available at http://adam.readthedocs.io.
+
+ADAM's core API documentation is available at http://javadoc.io/doc/org.bdgenomics.adam/adam-core-spark2_2.11.
 
 # The ADAM/Big Data Genomics Ecosystem
 
@@ -114,23 +99,25 @@ platforms.
 
 There are a number of tools built using ADAM's core APIs:
 
-- [Avocado](https://github.com/bigdatagenomics/avocado) is a variant caller built
-  on top of ADAM for germline and somatic calling
-- [Cannoli](https://github.com/bigdatagenomics/cannoli) uses ADAM's [pipe](#pipes)
-  API to parallelize common single-node genomics tools (e.g.,
+* [Avocado](https://github.com/bigdatagenomics/avocado) - Avocado is a distributed
+  variant caller built on top of ADAM for germline and somatic calling.
+* [Cannoli](https://github.com/bigdatagenomics/cannoli) - ADAM
+  [Pipe](http://adam.readthedocs.io/en/latest/api/pipes/) API wrappers for bioinformatics
+  tools, (e.g.,
   [BWA](https://github.com/lh3/bwa),
   [bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml),
   [FreeBayes](https://github.com/ekg/freebayes))
-- [DECA](https://github.com/bigdatagenomics/deca) is a reimplementation of the
-  XHMM copy number variant caller on top of ADAM/Apache Spark
-- [Gnocchi](https://github.com/bigdatagenomics/gnocchi) provides primitives for
-  running GWAS/eQTL tests on large genotype/phenotype datasets using ADAM
-- [Lime](https://github.com/bigdatagenomics/lime) provides a parallel
-  implementation of genomic set theoretic primitives using the [region join
-  API](#join)
-- [Mango](https://github.com/bigdatagenomics/mango) is a library for visualizing
-  large scale genomics data with interactive latencies and serving data using the
-  [GA4GH schemas](https://github.com/ga4gh/schemas)
+* [DECA](https://github.com/bigdatagenomics/deca) - DECA is a reimplementation of the
+  XHMM copy number variant caller on top of ADAM.
+* [Gnocchi](https://github.com/bigdatagenomics/gnocchi) - Gnocchi provides primitives
+  for running GWAS/eQTL tests on large genotype/phenotype datasets using ADAM.
+* [Lime](https://github.com/bigdatagenomics/lime) - Lime provides a
+  parallel implementation of genomic set theoretic primitives using the ADAM
+  [region join](http://adam.readthedocs.io/en/latest/api/joins/) API.
+* [Mango](https://github.com/bigdatagenomics/mango) - Mango is a library for
+  visualizing large scale genomics data with interactive latencies.
+
+For more, please see our [awesome list of applications](https://github.com/bigdatagenomics/awesome-adam) that extend ADAM.
 
 
 # Connecting with the ADAM team

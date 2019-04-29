@@ -21,7 +21,7 @@ import htsjdk.samtools.{ Cigar, CigarOperator }
 import org.apache.spark.rdd.RDD
 import org.bdgenomics.adam.models.ReferenceRegion
 import org.bdgenomics.adam.rdd.read.realignment.IndelRealignmentTarget
-import org.bdgenomics.adam.rdd.variant.VariantRDD
+import org.bdgenomics.adam.rdd.variant.VariantDataset
 import org.bdgenomics.adam.rich.RichAlignmentRecord
 import scala.collection.JavaConversions._
 
@@ -80,14 +80,36 @@ object ConsensusGenerator {
   }
 
   /**
-   * Provides a generator to extract consensuses from a known set of INDELs.
+   * (Java-specific) Provides a generator to extract consensuses from a known set of INDELs.
+   *
+   * @param rdd The previously called INDEL variants.
+   * @return A consensus generator that looks at previously called INDELs.
+   */
+  def fromKnownIndels(rdd: VariantDataset): ConsensusGenerator = {
+    new ConsensusGeneratorFromKnowns(rdd.rdd, 0)
+  }
+
+  /**
+   * (Java-specific) Provides a generator to extract consensuses from a known set of INDELs.
+   *
+   * @param rdd The previously called INDEL variants.
+   * @param flankSize The number of bases to flank each known INDEL by.
+   * @return A consensus generator that looks at previously called INDELs.
+   */
+  def fromKnownIndels(rdd: VariantDataset,
+                      flankSize: java.lang.Integer): ConsensusGenerator = {
+    new ConsensusGeneratorFromKnowns(rdd.rdd, flankSize)
+  }
+
+  /**
+   * (Scala-specific) Provides a generator to extract consensuses from a known set of INDELs.
    *
    * @param rdd The previously called INDEL variants.
    * @param flankSize The number of bases to flank each known INDEL by. Default
    *   is 0 bases.
    * @return A consensus generator that looks at previously called INDELs.
    */
-  def fromKnownIndels(rdd: VariantRDD,
+  def fromKnownIndels(rdd: VariantDataset,
                       flankSize: Int = 0): ConsensusGenerator = {
     new ConsensusGeneratorFromKnowns(rdd.rdd, flankSize)
   }
@@ -98,13 +120,14 @@ object ConsensusGenerator {
    * @return A consensus generator that generates consensuses with several
    *   methods.
    */
+  @scala.annotation.varargs
   def union(generators: ConsensusGenerator*): ConsensusGenerator = {
     UnionConsensusGenerator(generators.toSeq)
   }
 }
 
 /**
- * Trait for generating consensus sequences for INDEL realignment.
+ * Abstract class for generating consensus sequences for INDEL realignment.
  *
  * INDEL realignment scores read alignments against the reference genome and
  * a set of "consensus" sequences. These consensus sequences represent alternate
@@ -113,7 +136,7 @@ object ConsensusGenerator {
  * trait provides an interface that a consensus generation method should
  * implement to provide it's consensus sequences to the realigner.
  */
-trait ConsensusGenerator extends Serializable {
+abstract class ConsensusGenerator extends Serializable {
 
   /**
    * @param cigar The CIGAR to process.

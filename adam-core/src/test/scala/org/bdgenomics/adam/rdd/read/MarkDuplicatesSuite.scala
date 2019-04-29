@@ -19,17 +19,17 @@ package org.bdgenomics.adam.rdd.read
 
 import java.util.UUID
 import org.bdgenomics.adam.models.{
-  RecordGroup,
-  RecordGroupDictionary,
+  ReadGroup,
+  ReadGroupDictionary,
   SequenceDictionary
 }
 import org.bdgenomics.adam.util.ADAMFunSuite
-import org.bdgenomics.formats.avro.{ AlignmentRecord, Contig }
+import org.bdgenomics.formats.avro.{ AlignmentRecord, Reference }
 
 class MarkDuplicatesSuite extends ADAMFunSuite {
 
-  val rgd = new RecordGroupDictionary(Seq(
-    new RecordGroup("sammy sample",
+  val rgd = new ReadGroupDictionary(Seq(
+    new ReadGroup("sammy sample",
       "machine foo",
       library = Some("library bar"))))
 
@@ -48,20 +48,20 @@ class MarkDuplicatesSuite extends ADAMFunSuite {
     val qual = (for (i <- 0 until 100) yield (avgPhredScore + 33).toChar).toString()
     val cigar = if (numClippedBases > 0) "%dS%dM".format(numClippedBases, 100 - numClippedBases) else "100M"
 
-    val contig = Contig.newBuilder
-      .setContigName(referenceName)
+    val reference = Reference.newBuilder
+      .setName(referenceName)
       .build
 
     AlignmentRecord.newBuilder()
-      .setContigName(contig.getContigName)
+      .setReferenceName(reference.getName)
       .setStart(start)
-      .setQual(qual)
+      .setQuality(qual)
       .setCigar(cigar)
       .setEnd(end)
       .setReadMapped(true)
       .setPrimaryAlignment(isPrimaryAlignment)
       .setReadName(readName)
-      .setRecordGroupName("machine foo")
+      .setReadGroupId("machine foo")
       .setDuplicateRead(false)
       .setReadNegativeStrand(isNegativeStrand)
       .setSequence("ACGT")
@@ -72,33 +72,33 @@ class MarkDuplicatesSuite extends ADAMFunSuite {
                  secondReferenceName: String, secondStart: Long, secondEnd: Long,
                  readName: String = UUID.randomUUID().toString,
                  avgPhredScore: Int = 20): Seq[AlignmentRecord] = {
-    val firstContig = Contig.newBuilder
-      .setContigName(firstReferenceName)
+    val firstReference = Reference.newBuilder
+      .setName(firstReferenceName)
       .build
 
-    val secondContig = Contig.newBuilder
-      .setContigName(secondReferenceName)
+    val secondReference = Reference.newBuilder
+      .setName(secondReferenceName)
       .build
 
     val firstOfPair = createMappedRead(firstReferenceName, firstStart, firstEnd,
       readName = readName, avgPhredScore = avgPhredScore)
     firstOfPair.setReadInFragment(0)
     firstOfPair.setMateMapped(true)
-    firstOfPair.setMateContigName(secondContig.getContigName)
+    firstOfPair.setMateReferenceName(secondReference.getName)
     firstOfPair.setMateAlignmentStart(secondStart)
     firstOfPair.setReadPaired(true)
     val secondOfPair = createMappedRead(secondReferenceName, secondStart, secondEnd,
       readName = readName, avgPhredScore = avgPhredScore, isNegativeStrand = true)
     secondOfPair.setReadInFragment(1)
     secondOfPair.setMateMapped(true)
-    secondOfPair.setMateContigName(firstContig.getContigName)
+    secondOfPair.setMateReferenceName(firstReference.getName)
     secondOfPair.setMateAlignmentStart(firstStart)
     secondOfPair.setReadPaired(true)
     Seq(firstOfPair, secondOfPair)
   }
 
   private def markDuplicates(reads: AlignmentRecord*): Array[AlignmentRecord] = {
-    AlignmentRecordRDD(sc.parallelize(reads), SequenceDictionary.empty, rgd, Seq.empty)
+    AlignmentRecordDataset(sc.parallelize(reads), SequenceDictionary.empty, rgd, Seq.empty)
       .markDuplicates()
       .rdd
       .collect()
@@ -190,7 +190,7 @@ class MarkDuplicatesSuite extends ADAMFunSuite {
   test("quality scores") {
     // The ascii value 53 is equal to a phred score of 20
     val qual = 53.toChar.toString * 100
-    val record = AlignmentRecord.newBuilder().setQual(qual).build()
+    val record = AlignmentRecord.newBuilder().setQuality(qual).build()
     assert(MarkDuplicates.score(record) == 2000)
   }
 
@@ -207,7 +207,7 @@ class MarkDuplicatesSuite extends ADAMFunSuite {
   }
 
   private def markDuplicateFragments(reads: AlignmentRecord*): Array[AlignmentRecord] = {
-    AlignmentRecordRDD(sc.parallelize(reads), SequenceDictionary.empty, rgd, Seq.empty)
+    AlignmentRecordDataset(sc.parallelize(reads), SequenceDictionary.empty, rgd, Seq.empty)
       .toFragments
       .markDuplicates()
       .toReads
@@ -308,5 +308,30 @@ class MarkDuplicatesSuite extends ADAMFunSuite {
     val (dups, nonDups) = marked.partition(_.getDuplicateRead)
     assert(nonDups.size == 2 && nonDups.forall(p => p.getReadName.toString == "best"))
     assert(dups.forall(p => p.getReadName.startsWith("poor")))
+  }
+
+  sparkTest("inverse pairs") {
+    val firstPair = createPair("0", 100, 251, "0", 1100, 1251, "pair1")
+    val secondPair = createPair("0", 1100, 1251, "0", 100, 251, "pair2")
+    secondPair.head.setReadNegativeStrand(true)
+    secondPair.head.setMateNegativeStrand(false)
+    secondPair(1).setReadNegativeStrand(false)
+    secondPair(1).setMateNegativeStrand(true)
+
+    val marked = markDuplicateFragments(firstPair ++ secondPair: _*)
+    val (dups, nonDups) = marked.partition(_.getDuplicateRead)
+    assert(dups.size == 2)
+  }
+
+  sparkTest("supplemental reads") {
+    val supplementalPoorName = "supplementalPoor"
+    val supplementalRead = createMappedRead("ref0", 10, 110, "supplementalPoor", avgPhredScore = 10, isPrimaryAlignment = true)
+    supplementalRead.setSupplementaryAlignment(true)
+    val supplementalPoorPair = createPair("ref0", 10, 110, "ref1", 110, 210, avgPhredScore = 30, readName = supplementalPoorName) ++ Seq(supplementalRead)
+    val bestName = "best"
+    val bestPair = createPair("ref0", 10, 110, "ref1", 110, 210, avgPhredScore = 30, readName = bestName)
+    val marked = markDuplicateFragments(bestPair ++ supplementalPoorPair: _*)
+    val (dups, nonDups) = marked.partition(_.getDuplicateRead)
+    assert(nonDups.size == 2 && nonDups.forall(p => p.getReadName.toString == bestName))
   }
 }

@@ -296,7 +296,7 @@ class VariantContextConverter(
   import VariantContextConverter._
 
   // format fns gatk --> bdg, extract fns bdg --> gatk
-  private val variantFormatFn = makeVariantFormatFn(headerLines)
+  private val variantFormatFn = makeVariantFormatFn(headerLines, stringency)
   private val variantExtractFn = makeVariantExtractFn(headerLines)
   private val genotypeFormatFn = makeGenotypeFormatFn(headerLines)
   private val genotypeExtractFn = makeGenotypeExtractFn(headerLines)
@@ -1074,7 +1074,7 @@ class VariantContextConverter(
     val copyNumber = gls.length - 1
     val elements = numPls(copyNumber)
 
-    val array = Array.fill(elements) { Int.MinValue }
+    val array = Array.fill(elements) { PhredUtils.minValue }
 
     (0 to copyNumber).foreach(idx => {
       array(idx) = PhredUtils.logProbabilityToPhred(gls.get(idx))
@@ -1307,6 +1307,8 @@ class VariantContextConverter(
         Float.PositiveInfinity
       } else if (o == "-Inf") {
         Float.NegativeInfinity
+      } else if (o == "nan") {
+        Float.NaN
       } else {
         o.toFloat
       }
@@ -1431,51 +1433,54 @@ class VariantContextConverter(
                                            id: String,
                                            toFn: (java.lang.Object => Any)): Option[(String, Any)] = {
     Option(vc.getAttribute(id))
-      .map(toFn)
+      .filter(attr => attr match {
+        case s: String => s != "."
+        case _         => true
+      }).map(toFn)
       .map(attr => (id, attr))
   }
 
   private def lineToVariantContextExtractor(
-    headerLine: VCFInfoHeaderLine): ((HtsjdkVariantContext, Int, Array[Int]) => Option[(String, String)]) = {
+    headerLine: VCFInfoHeaderLine): Option[(HtsjdkVariantContext, Int, Array[Int]) => Option[(String, String)]] = {
     val id = headerLine.getID
 
     if (headerLine.isFixedCount && headerLine.getCount == 0 && headerLine.getType == VCFHeaderLineType.Flag) {
-      (vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
+      Some((vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
         {
           variantContextFieldExtractor(vc, id, toBoolean).map(kv => (kv._1, kv._2.toString))
-        }
+        })
     } else if (headerLine.isFixedCount && headerLine.getCount == 1) {
       headerLine.getType match {
         // Flag header line types should be Number=0, but we'll allow Number=1
         case VCFHeaderLineType.Flag => {
-          (vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
+          Some((vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
             {
               variantContextFieldExtractor(vc, id, toBoolean).map(kv => (kv._1, kv._2.toString))
-            }
+            })
         }
         case VCFHeaderLineType.Character => {
-          (vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
+          Some((vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
             {
               variantContextFieldExtractor(vc, id, toChar).map(kv => (kv._1, kv._2.toString))
-            }
+            })
         }
         case VCFHeaderLineType.Float => {
-          (vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
+          Some((vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
             {
               variantContextFieldExtractor(vc, id, toFloat).map(kv => (kv._1, kv._2.toString))
-            }
+            })
         }
         case VCFHeaderLineType.Integer => {
-          (vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
+          Some((vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
             {
               variantContextFieldExtractor(vc, id, toInt).map(kv => (kv._1, kv._2.toString))
-            }
+            })
         }
         case VCFHeaderLineType.String => {
-          (vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
+          Some((vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
             {
               variantContextFieldExtractor(vc, id, asString).map(kv => (kv._1, kv._2.toString))
-            }
+            })
         }
       }
     } else {
@@ -1512,29 +1517,33 @@ class VariantContextConverter(
 
       (headerLine.isFixedCount, headerLine.getCountType) match {
         case (false, VCFHeaderLineCount.A) => {
-          (vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
+          Some((vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
             {
               fromArrayExtractor(vc, id, toFn, idx)
                 .map(kv => (kv._1, kv._2.toString))
-            }
+            })
         }
         case (false, VCFHeaderLineCount.R) => {
-          (vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
+          Some((vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
             {
               arrayFieldExtractor(vc, id, toFn, List(0, idx + 1))
                 .map(kv => (kv._1, kv._2.mkString(",")))
-            }
+            })
         }
         case (false, VCFHeaderLineCount.G) => {
-          throw new IllegalArgumentException("Number=G INFO lines are not supported in split-allelic model: %s".format(
-            headerLine))
+          if (stringency == ValidationStringency.LENIENT) {
+            log.warn("Ignoring INFO field with Number=G described in header row: %s".format(headerLine))
+            None
+          } else
+            throw new IllegalArgumentException("Number=G INFO lines are not supported in split-allelic model: %s".format(
+              headerLine))
         }
         case _ => {
-          (vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
+          Some((vc: HtsjdkVariantContext, idx: Int, indices: Array[Int]) =>
             {
               arrayFieldExtractor(vc, id, toFn, List.empty)
                 .map(kv => (kv._1, kv._2.mkString(",")))
-            }
+            })
         }
       }
     }
@@ -1629,7 +1638,8 @@ class VariantContextConverter(
   }
 
   private def makeVariantFormatFn(
-    headerLines: Seq[VCFHeaderLine]): (HtsjdkVariantContext, Option[String], Int, Boolean) => (Variant, Variant) = {
+    headerLines: Seq[VCFHeaderLine],
+    stringency: ValidationStringency = ValidationStringency.STRICT): (HtsjdkVariantContext, Option[String], Int, Boolean) => (Variant, Variant) = {
 
     val attributeFns: Iterable[(HtsjdkVariantContext, Int, Array[Int]) => Option[(String, String)]] = headerLines
       .flatMap(hl => hl match {
@@ -1641,8 +1651,20 @@ class VariantContextConverter(
           if (DefaultHeaderLines.infoHeaderLines
             .find(_.getID == key)
             .isEmpty) {
-
-            Some(lineToVariantContextExtractor(il))
+            try {
+              lineToVariantContextExtractor(il)
+            } catch {
+              case t: Throwable => {
+                if (stringency == ValidationStringency.STRICT) {
+                  throw t
+                } else {
+                  if (stringency == ValidationStringency.LENIENT) {
+                    log.warn("Saw invalid info field %s. Ignoring...".format(t))
+                  }
+                  None
+                }
+              }
+            }
           } else {
             None
           }
@@ -1657,7 +1679,7 @@ class VariantContextConverter(
 
       // create the builder
       val variantBuilder = Variant.newBuilder
-        .setContigName(vc.getChr)
+        .setReferenceName(vc.getChr)
         .setStart(vc.getStart - 1)
         .setEnd(vc.getEnd)
         .setReferenceAllele(vc.getReference.getBaseString)
@@ -1769,7 +1791,7 @@ class VariantContextConverter(
       // create the builder
       val builder = Genotype.newBuilder()
         .setVariant(variant)
-        .setContigName(variant.getContigName)
+        .setReferenceName(variant.getReferenceName)
         .setStart(variant.getStart)
         .setEnd(variant.getEnd)
         .setSampleId(g.getSampleName)
@@ -2160,7 +2182,7 @@ class VariantContextConverter(
       val hasNonRefAlleles = vc.genotypes
         .exists(_.getNonReferenceLikelihoods.length != 0)
       val builder = new VariantContextBuilder()
-        .chr(v.getContigName)
+        .chr(v.getReferenceName)
         .start(v.getStart + 1)
         .stop(v.getEnd)
         .alleles(VariantContextConverter.convertAlleles(v, hasNonRefAlleles))

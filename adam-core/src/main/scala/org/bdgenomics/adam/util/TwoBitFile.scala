@@ -71,12 +71,12 @@ class TwoBitFile(byteAccess: ByteAccess) extends ReferenceFile {
   private val seqRecordsMap = seqRecords.toMap
 
   /**
-   * The sequence dictionary corresponding to the contigs in this two bit file.
+   * The sequence dictionary corresponding to the reference sequences in this two bit file.
    */
   val sequences = new SequenceDictionary(seqRecords.toVector
     .map(r => SequenceRecord(r._1,
       r._2.dnaSize,
-      referenceIndex = Some(r._2.seqIdx))))
+      index = Some(r._2.seqIdx))))
 
   private def readHeader(): Int = {
     // figure out proper byte order
@@ -113,7 +113,7 @@ class TwoBitFile(byteAccess: ByteAccess) extends ReferenceFile {
       seqRecordsMap.getOrElse(
         region.referenceName,
         throw new Exception(
-          s"Contig ${region.referenceName} not found in reference map with keys: ${seqRecordsMap.keys.toList.sortBy(x => x).mkString(", ")}"
+          s"Reference sequence ${region.referenceName} not found in reference map with keys: ${seqRecordsMap.keys.toList.sortBy(x => x).mkString(", ")}"
         )
       )
     val contigLength = record.dnaSize
@@ -122,32 +122,28 @@ class TwoBitFile(byteAccess: ByteAccess) extends ReferenceFile {
     val offset = record.dnaOffset
     val sb = StringBuilder.newBuilder
 
-    val nBlocks: Array[Long] = if (record.nBlocks.isEmpty) {
-      Array(-1L)
+    // define predicate for N blocks
+    val isNBlock = if (record.nBlocks.forall(!_.hasRegionsFor(region -> None))) {
+      // our region has no overlap with an N block, so the predicate is trivial
+      pos: Long => false
     } else {
-      record.nBlocks.get.endpoints ++ Array(-1L)
-    }
-    val maskBlocks: Array[Long] = if (record.maskBlocks.isEmpty) {
-      Array(-1L)
-    } else {
-      record.maskBlocks.get.endpoints ++ Array(-1L)
+      // our region does have some kind of overlap with N blocks, so we need to check each position
+      pos: Long => record.nBlocks.get.findOverlappingRegions(ReferencePosition(region.referenceName, pos)).nonEmpty
     }
 
-    var currentNBlock = 0
-    var currentMaskBlock = 0
-    while (nBlocks(currentNBlock) != -1 && region.start.toInt >= nBlocks(currentNBlock + 1)) {
-      currentNBlock += 2
-    }
-    while (maskBlocks(currentMaskBlock) != -1 && region.start.toInt >= maskBlocks(currentMaskBlock + 1)) {
-      currentMaskBlock += 2
+    // define predicate for mask blocks
+    val isMaskBlock = if (record.maskBlocks.forall(!_.hasRegionsFor(region -> None))) {
+      // our region has no overlap with a mask block, so the predicate is trivial
+      pos: Long => false
+    } else {
+      // our region does have some kind of overlap with mask blocks, so we need to check each position
+      pos: Long => record.maskBlocks.get.findOverlappingRegions(ReferencePosition(region.referenceName, pos)).nonEmpty
     }
 
-    for (i <- 0 until region.width.toInt) {
-      // we step into an N block
-      val nt = if (nBlocks(currentNBlock) != -1 && region.start.toInt + i >= nBlocks(currentNBlock)) {
-        if (region.start.toInt + i + 1 == nBlocks(currentNBlock + 1)) {
-          currentNBlock += 2
-        }
+    // iterate over every position in the query region
+    (0 until region.width.toInt).foreach(i => {
+      // check whether we're in an N block
+      val nt = if (isNBlock(region.start + i)) {
         'N'
       } else {
         // TODO: this redundantly reads the byte at a given offset
@@ -167,16 +163,9 @@ class TwoBitFile(byteAccess: ByteAccess) extends ReferenceFile {
         }
       }
       // if nt is masked then make it lower case
-      val maskedNt = if (mask && maskBlocks(currentMaskBlock) != -1 && region.start.toInt + i >= maskBlocks(currentMaskBlock)) {
-        if (region.start.toInt + i + 1 == maskBlocks(currentMaskBlock + 1)) {
-          currentMaskBlock += 2
-        }
-        nt.toLower
-      } else {
-        nt
-      }
+      val maskedNt = if (mask && isMaskBlock(region.start + i)) nt.toLower else nt
       sb += maskedNt
-    }
+    })
     sb.toString()
   }
 
