@@ -84,7 +84,7 @@ class VariantContextConverterSuite extends ADAMFunSuite {
     .chr("1")
 
   def adamSNVBuilder(contig: String = "1"): Variant.Builder = Variant.newBuilder()
-    .setContigName(contig)
+    .setReferenceName(contig)
     .setStart(0L)
     .setEnd(1L)
     .setReferenceAllele("A")
@@ -98,7 +98,7 @@ class VariantContextConverterSuite extends ADAMFunSuite {
     assert(adamVC.genotypes.size === 0)
 
     val variant = adamVC.variant.variant
-    assert(variant.getContigName === "1")
+    assert(variant.getReferenceName === "1")
 
     assert(variant.getReferenceAllele === "A")
     assert(variant.getStart === 0L)
@@ -127,7 +127,7 @@ class VariantContextConverterSuite extends ADAMFunSuite {
     assert(adamVC.genotypes.size === 0)
 
     val variant = adamVC.variant.variant
-    assert(variant.getContigName === "1")
+    assert(variant.getReferenceName === "1")
 
     assert(variant.getReferenceAllele === "A")
     assert(variant.getAlternateAllele === "<CN0>")
@@ -349,7 +349,7 @@ class VariantContextConverterSuite extends ADAMFunSuite {
     assert(adamGT1.getGenotypeLikelihoods
       .map(d => d: scala.Double)
       .map(PhredUtils.logProbabilityToPhred)
-      .sameElements(List(59, 0, Int.MaxValue)))
+      .sameElements(List(59, 0, 181)))
 
     assert(adamGT2.getAlleles.sameElements(List(GenotypeAllele.OTHER_ALT, GenotypeAllele.ALT)))
     assert(adamGT2.getAlternateReadDepth === 3)
@@ -1915,7 +1915,7 @@ class VariantContextConverterSuite extends ADAMFunSuite {
   }
 
   val v = Variant.newBuilder
-    .setContigName("1")
+    .setReferenceName("1")
     .setStart(0L)
     .setEnd(1L)
     .setReferenceAllele("A")
@@ -2093,7 +2093,7 @@ class VariantContextConverterSuite extends ADAMFunSuite {
       "Number=G Type=String")
 
     intercept[IllegalArgumentException] {
-      val vc = new VariantContextConverter(DefaultHeaderLines.allHeaderLines :+ gStringHeader, lenient, false)
+      val vc = new VariantContextConverter(DefaultHeaderLines.allHeaderLines :+ gStringHeader, ValidationStringency.STRICT, false)
         .convert(adamVc).orNull
     }
   }
@@ -2244,7 +2244,7 @@ class VariantContextConverterSuite extends ADAMFunSuite {
       "Number=G Type=String")
 
     intercept[IllegalArgumentException] {
-      val adamVc = new VariantContextConverter(DefaultHeaderLines.allHeaderLines :+ gStringHeader, lenient, false)
+      val adamVc = new VariantContextConverter(DefaultHeaderLines.allHeaderLines :+ gStringHeader, ValidationStringency.STRICT, false)
         .convert(vc)
     }
   }

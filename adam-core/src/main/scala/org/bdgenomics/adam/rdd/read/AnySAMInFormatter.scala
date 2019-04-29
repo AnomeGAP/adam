@@ -21,10 +21,11 @@ import htsjdk.samtools.{ SAMFileHeader, SAMFileWriter }
 import java.io.OutputStream
 import org.bdgenomics.adam.converters.AlignmentRecordConverter
 import org.bdgenomics.adam.models.{
-  RecordGroupDictionary,
+  ReadGroupDictionary,
   SAMFileHeaderWritable
 }
 import org.bdgenomics.adam.rdd.{ InFormatter, InFormatterCompanion }
+import org.bdgenomics.adam.sql.{ AlignmentRecord => AlignmentRecordProduct }
 import org.bdgenomics.formats.avro.AlignmentRecord
 
 /**
@@ -33,28 +34,28 @@ import org.bdgenomics.formats.avro.AlignmentRecord
  *
  * @tparam T The type of the underlying InFormatter.
  */
-trait AnySAMInFormatterCompanion[T <: AnySAMInFormatter[T]] extends InFormatterCompanion[AlignmentRecord, AlignmentRecordRDD, T] {
+trait AnySAMInFormatterCompanion[T <: AnySAMInFormatter[T]] extends InFormatterCompanion[AlignmentRecord, AlignmentRecordProduct, AlignmentRecordDataset, T] {
   protected def makeFormatter(header: SAMFileHeaderWritable,
-                              recordGroups: RecordGroupDictionary,
+                              readGroups: ReadGroupDictionary,
                               converter: AlignmentRecordConverter): T
 
   /**
-   * Makes an AnySAMInFormatter from a GenomicRDD of AlignmentRecords.
+   * Makes an AnySAMInFormatter from a GenomicDataset of AlignmentRecords.
    *
-   * @param gRdd AlignmentRecordRDD with reference build and record group info.
+   * @param gDataset AlignmentRecordDataset with reference build and read group info.
    * @return Returns an InFormatter that extends AnySAMInFormatter.
    */
-  def apply(gRdd: AlignmentRecordRDD): T = {
+  def apply(gDataset: AlignmentRecordDataset): T = {
 
     // make a converter
     val arc = new AlignmentRecordConverter
 
     // build a header and set the sort order
-    val header = arc.createSAMHeader(gRdd.sequences, gRdd.recordGroups)
+    val header = arc.createSAMHeader(gDataset.sequences, gDataset.readGroups)
     header.setSortOrder(SAMFileHeader.SortOrder.coordinate)
 
     // construct the in formatter
-    makeFormatter(SAMFileHeaderWritable(header), gRdd.recordGroups, arc)
+    makeFormatter(SAMFileHeaderWritable(header), gDataset.readGroups, arc)
   }
 }
 
@@ -63,7 +64,7 @@ trait AnySAMInFormatterCompanion[T <: AnySAMInFormatter[T]] extends InFormatterC
  *
  * @tparam T The recursive type of the class that implements this trait.
  */
-trait AnySAMInFormatter[T <: AnySAMInFormatter[T]] extends InFormatter[AlignmentRecord, AlignmentRecordRDD, T] {
+trait AnySAMInFormatter[T <: AnySAMInFormatter[T]] extends InFormatter[AlignmentRecord, AlignmentRecordProduct, AlignmentRecordDataset, T] {
 
   /**
    * A serializable form of the SAM File Header.
@@ -73,7 +74,7 @@ trait AnySAMInFormatter[T <: AnySAMInFormatter[T]] extends InFormatter[Alignment
   /**
    * A dictionary describing the read groups these reads are from.
    */
-  val recordGroups: RecordGroupDictionary
+  val readGroups: ReadGroupDictionary
 
   /**
    * A converter from AlignmentRecord to SAMRecord.
@@ -95,7 +96,7 @@ trait AnySAMInFormatter[T <: AnySAMInFormatter[T]] extends InFormatter[Alignment
 
     // write the records
     iter.foreach(r => {
-      val samRecord = converter.convert(r, header, recordGroups)
+      val samRecord = converter.convert(r, header, readGroups)
       writer.addAlignment(samRecord)
     })
 

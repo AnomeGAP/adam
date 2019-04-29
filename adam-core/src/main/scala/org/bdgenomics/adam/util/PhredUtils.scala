@@ -36,6 +36,9 @@ import scala.math.{
  */
 object PhredUtils extends Serializable {
 
+  // doubles in log space underflow at the probability equivalent to Phred 3233
+  val minValue = 3233
+
   private lazy val phredToErrorProbabilityCache: Array[Double] = {
     (0 until 256).map { p => pow(10.0, -p / 10.0) }.toArray
   }
@@ -52,7 +55,7 @@ object PhredUtils extends Serializable {
    * @return The input phred score as a log success probability.
    */
   def phredToLogProbability(phred: Int): Double = {
-    if (phred < 255) {
+    if (phred < 156) {
       log(phredToSuccessProbability(phred)).toFloat
     } else {
       log1p(-exp(phred * MLOG10_DIV10))
@@ -64,7 +67,9 @@ object PhredUtils extends Serializable {
    * @return The input phred score as a success probability. If the phred score
    *   is above 255, we clip to 255.
    */
-  def phredToSuccessProbability(phred: Int): Double = if (phred < 255) {
+  def phredToSuccessProbability(phred: Int): Double = if (phred <= 0) {
+    phredToSuccessProbabilityCache(0)
+  } else if (phred < 255) {
     phredToSuccessProbabilityCache(phred)
   } else {
     phredToSuccessProbabilityCache(255)
@@ -75,7 +80,9 @@ object PhredUtils extends Serializable {
    * @return The input phred score as an error probability. If the phred score
    *   is above 255, we clip to 255.
    */
-  def phredToErrorProbability(phred: Int): Double = if (phred < 255) {
+  def phredToErrorProbability(phred: Int): Double = if (phred <= 0) {
+    phredToErrorProbabilityCache(0)
+  } else if (phred < 255) {
     phredToErrorProbabilityCache(phred)
   } else {
     phredToErrorProbabilityCache(255)
@@ -101,8 +108,8 @@ object PhredUtils extends Serializable {
    * @return Returns this probability as a Phred score. If the log value is 0.0,
    *   we clip the phred score to Int.MaxValue.
    */
-  def logProbabilityToPhred(p: Double): Int = if (p == 0.0) {
-    Int.MaxValue
+  def logProbabilityToPhred(p: Double): Int = if (p == 0.0 || p == -0.0) {
+    minValue
   } else {
     round(M10_DIV_LOG10 * log(-expm1(p))).toInt
   }

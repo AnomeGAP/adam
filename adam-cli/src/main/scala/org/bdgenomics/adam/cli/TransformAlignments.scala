@@ -27,11 +27,12 @@ import org.apache.spark.{ SparkContext, TaskContext }
 import org.apache.spark.storage.StorageLevel
 import org.bdgenomics.adam.algorithms.consensus._
 import org.bdgenomics.adam.instrumentation.Timers._
+import org.bdgenomics.adam.io.FastqRecordReader
 import org.bdgenomics.adam.models.{ ReferenceRegion, SnpTable }
 import org.bdgenomics.adam.projections.{ AlignmentRecordField, Filter }
 import org.bdgenomics.adam.rdd.ADAMContext._
 import org.bdgenomics.adam.rdd.ADAMSaveAnyArgs
-import org.bdgenomics.adam.rdd.read.{ AlignmentRecordRDD, QualityScoreBin }
+import org.bdgenomics.adam.rdd.read.{ AlignmentRecordDataset, QualityScoreBin }
 import org.bdgenomics.adam.rich.RichVariant
 import org.bdgenomics.formats.avro.{ AlignmentRecord, ProcessingStep }
 import org.bdgenomics.utils.cli._
@@ -72,6 +73,10 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   var recalibrateBaseQualities: Boolean = false
   @Args4jOption(required = false, name = "-min_acceptable_quality", usage = "Minimum acceptable quality for recalibrating a base in a read. Default is 5.")
   var minAcceptableQuality: Int = 5
+  @Args4jOption(required = false, name = "-sampling_fraction", usage = "Fraction of reads to sample during recalibration; omitted by default.")
+  var samplingFraction: Double = 0.0
+  @Args4jOption(required = false, name = "-sampling_seed", usage = "Seed to use when sampling during recalibration; omitted by default by setting to 0 (thus, 0 is an invalid seed).")
+  var samplingSeed: Long = 0L
   @Args4jOption(required = false, name = "-stringency", usage = "Stringency level for various checks; can be SILENT, LENIENT, or STRICT. Defaults to LENIENT")
   var stringency: String = "LENIENT"
   @Args4jOption(required = false, name = "-known_snps", usage = "Sites-only VCF giving location of known SNPs")
@@ -118,8 +123,8 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   var disableFastConcat: Boolean = false
   @Args4jOption(required = false, name = "-paired_fastq", usage = "When converting two (paired) FASTQ files to ADAM, pass the path to the second file here.")
   var pairedFastqFile: String = null
-  @Args4jOption(required = false, name = "-record_group", usage = "Set converted FASTQs' record-group names to this value; if empty-string is passed, use the basename of the input file, minus the extension.")
-  var fastqRecordGroup: String = null
+  @Args4jOption(required = false, name = "-read_group", usage = "Set converted FASTQs' read-group identifiers to this value; if empty-string is passed, use the basename of the input file, minus the extension.")
+  var fastqReadGroup: String = null
   @Args4jOption(required = false, name = "-concat", usage = "Concatenate this file with <INPUT> and write the result to <OUTPUT>")
   var concatFilename: String = null
   @Args4jOption(required = false, name = "-add_md_tags", usage = "Add MD Tags to reads based on the FASTA (or equivalent) file passed to this option.")
@@ -220,6 +225,12 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   @Args4jOption(required = false, name = "-lc_threshold_len_factor", usage = "Low complexity: threshold = length / lc_threshold_len_factor / lc_kmer",
     depends = { Array[String]("-tag_reads", "-filter_lc_reads") })
   var lcThresholdLenFactor = 2
+  @Args4jOption(required = false, name = "-partition_by_start_pos", usage = "Save the data partitioned by genomic range bins based on start pos using Hive-style partitioning.")
+  var partitionByStartPos: Boolean = false
+  @Args4jOption(required = false, name = "-partition_bin_size", usage = "Partition bin size used in Hive-style partitioning. Defaults to 1Mbp (1,000,000) base pairs).")
+  var partitionedBinSize = 1000000
+  @Args4jOption(required = false, name = "-max_read_length", usage = "Maximum FASTQ read length, defaults to 10,000 base pairs (bp).")
+  var maxReadLength: Int = 0
   var command: String = null
 }
 
@@ -233,7 +244,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
    * @return If the binQualityScores argument is set, rewrites the quality scores of the
    *   reads into bins. Else, returns the original RDD.
    */
-  private def maybeBin(rdd: AlignmentRecordRDD): AlignmentRecordRDD = {
+  private def maybeBin(rdd: AlignmentRecordDataset): AlignmentRecordDataset = {
     Option(args.binQualityScores).fold(rdd)(binDescription => {
       val bins = QualityScoreBin(binDescription)
       rdd.binQualityScores(bins)
@@ -246,7 +257,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
    *   to the number of partitions requested by the user. Forces a shuffle using
    *   a hash partitioner.
    */
-  private def maybeRepartition(rdd: AlignmentRecordRDD): AlignmentRecordRDD = {
+  private def maybeRepartition(rdd: AlignmentRecordDataset): AlignmentRecordDataset = {
     if (args.repartition != -1) {
       log.info("Repartitioning reads to to '%d' partitions".format(args.repartition))
       rdd.transform(_.repartition(args.repartition))
@@ -261,7 +272,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
    *   where reads have been marked as duplicates if they appear to be from
    *   duplicated fragments. Else, returns the input RDD.
    */
-  private def maybeDedupe(rdd: AlignmentRecordRDD): AlignmentRecordRDD = {
+  private def maybeDedupe(rdd: AlignmentRecordDataset): AlignmentRecordDataset = {
     if (args.markDuplicates) {
       log.info("Marking duplicates")
       rdd.markDuplicates()
@@ -282,8 +293,8 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
    *   -realign_indels is not set, we return the input RDD.
    */
   private def maybeRealign(sc: SparkContext,
-                           rdd: AlignmentRecordRDD,
-                           sl: StorageLevel): AlignmentRecordRDD = {
+                           rdd: AlignmentRecordDataset,
+                           sl: StorageLevel): AlignmentRecordDataset = {
     if (args.locallyRealign) {
 
       log.info("Locally realigning indels.")
@@ -341,8 +352,8 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
    *   known variation when recalibrating. If BQSR has not been requested,
    *   we return the input RDD.
    */
-  private def maybeRecalibrate(rdd: AlignmentRecordRDD,
-                               sl: StorageLevel): AlignmentRecordRDD = {
+  private def maybeRecalibrate(rdd: AlignmentRecordDataset,
+                               sl: StorageLevel): AlignmentRecordDataset = {
     if (args.recalibrateBaseQualities) {
 
       log.info("Recalibrating base qualities")
@@ -364,7 +375,9 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
       val bqsredRdd = rdd.recalibrateBaseQualities(
         broadcastedSnps,
         args.minAcceptableQuality,
-        optSl
+        optSl,
+        optSamplingFraction = Option(args.samplingFraction).filter(_ > 0.0),
+        optSamplingSeed = Option(args.samplingSeed).filter(_ != 0L)
       )
 
       bqsredRdd
@@ -380,7 +393,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
    *   smaller than the current number of partitions, or if the -force_shuffle
    *   flag is set. If -coalesce was not requested, returns the input RDD.
    */
-  private def maybeCoalesce(rdd: AlignmentRecordRDD): AlignmentRecordRDD = {
+  private def maybeCoalesce(rdd: AlignmentRecordDataset): AlignmentRecordDataset = {
     if (args.coalesce != -1) {
       log.info("Coalescing the number of partitions to '%d'".format(args.coalesce))
       if (args.coalesce > rdd.rdd.partitions.length || args.forceShuffle) {
@@ -401,8 +414,8 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
    *   instead of by contig index. If no sorting was requested, returns
    *   the input RDD.
    */
-  private def maybeSort(rdd: AlignmentRecordRDD,
-                        sl: StorageLevel): AlignmentRecordRDD = {
+  private def maybeSort(rdd: AlignmentRecordDataset,
+                        sl: StorageLevel): AlignmentRecordDataset = {
     if (args.sortReads) {
 
       // cache the input if requested. sort is two stages:
@@ -440,9 +453,9 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
    *   these tags are recomputed or not. If MD tagging isn't requested, we
    *   return the input RDD.
    */
-  def maybeMdTag(sc: SparkContext,
-                 rdd: AlignmentRecordRDD,
-                 stringencyOpt: Option[ValidationStringency]): AlignmentRecordRDD = {
+  private def maybeMdTag(sc: SparkContext,
+                         rdd: AlignmentRecordDataset,
+                         stringencyOpt: Option[ValidationStringency]): AlignmentRecordDataset = {
     if (args.mdTagsReferenceFile != null) {
       log.info(s"Adding MDTags to reads based on reference file ${args.mdTagsReferenceFile}")
       val referenceFile = sc.loadReferenceFile(args.mdTagsReferenceFile,
@@ -456,12 +469,16 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
     }
   }
 
-  def apply(rdd: AlignmentRecordRDD): AlignmentRecordRDD = {
+  def apply(rdd: AlignmentRecordDataset): AlignmentRecordDataset = {
 
     val sc = rdd.rdd.context
     val sl = StorageLevel.fromString(args.storageLevel)
 
     val stringencyOpt = Option(args.stringency).map(ValidationStringency.valueOf(_))
+
+    if (args.maxReadLength > 0) {
+      FastqRecordReader.setMaxReadLength(sc.hadoopConfiguration, args.maxReadLength)
+    }
 
     // first repartition if needed
     val initialRdd = maybeRepartition(rdd)
@@ -530,7 +547,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
       )
     }
 
-    val loadedRdd: AlignmentRecordRDD =
+    val loadedRdd: AlignmentRecordDataset =
       if (args.forceLoadBam) {
         if (args.regionPredicate != null) {
           val loci = ReferenceRegion.fromString(args.regionPredicate)
@@ -539,7 +556,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           sc.loadBam(args.inputPath)
         }
       } else if (args.forceLoadFastq) {
-        sc.loadFastq(args.inputPath, Option(args.pairedFastqFile), Option(args.fastqRecordGroup), stringency)
+        sc.loadFastq(args.inputPath, Option(args.pairedFastqFile), Option(args.fastqReadGroup), stringency)
       } else if (args.forceLoadIFastq) {
         sc.loadInterleavedFastq(args.inputPath)
       } else if (args.forceLoadParquet ||
@@ -557,7 +574,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
 
         val proj = if (args.limitProjection) {
           Some(Filter(AlignmentRecordField.attributes,
-            AlignmentRecordField.origQual))
+            AlignmentRecordField.originalQuality))
         } else {
           None
         }
@@ -569,7 +586,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         val loadedReads = sc.loadAlignments(
           args.inputPath,
           optPathName2 = Option(args.pairedFastqFile),
-          optRecordGroup = Option(args.fastqRecordGroup),
+          optReadGroup = Option(args.fastqReadGroup),
           stringency = stringency
         )
 
@@ -581,7 +598,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         }
       }
 
-    val aRdd: AlignmentRecordRDD = if (args.disableProcessingStep) {
+    val aRdd: AlignmentRecordDataset = if (args.disableProcessingStep) {
       loadedRdd
     } else {
       // add program info
@@ -603,7 +620,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
 
     val rdd = aRdd.rdd
     val sd = aRdd.sequences
-    val rgd = aRdd.recordGroups
+    val rgd = aRdd.readGroups
     val pgs = aRdd.processingSteps
 
     // Optionally load a second RDD and concatenate it with the first.
@@ -620,17 +637,17 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         } else {
           sc.loadAlignments(
             concatFilename,
-            optRecordGroup = Option(args.fastqRecordGroup)
+            optReadGroup = Option(args.fastqReadGroup)
           )
         })
 
     // if we have a second rdd that we are merging in, process the merger here
     val (mergedRdd, mergedSd, mergedRgd, mergedPgs) = concatOpt.fold((rdd, sd, rgd, pgs))(t => {
-      (rdd ++ t.rdd, sd ++ t.sequences, rgd ++ t.recordGroups, pgs ++ t.processingSteps)
+      (rdd ++ t.rdd, sd ++ t.sequences, rgd ++ t.readGroups, pgs ++ t.processingSteps)
     })
 
     // make a new aligned read rdd, that merges the two RDDs together
-    val newRdd = AlignmentRecordRDD(mergedRdd, mergedSd, mergedRgd, mergedPgs)
+    val newRdd = AlignmentRecordDataset(mergedRdd, mergedSd, mergedRgd, mergedPgs)
 
     // run our transformation
     val outputRdd = this.apply(newRdd)
@@ -802,6 +819,12 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         .save(args, isSorted = args.sortReads || args.sortLexicographically)
 
       renameWithXPrefix(args.outputPath, dict)
+    }
+    if (args.partitionByStartPos) {
+      if (outputRdd.sequences.isEmpty) {
+        log.warn("This dataset is not aligned and therefore will not benefit from being saved as a partitioned dataset")
+      }
+      outputRdd.saveAsPartitionedParquet(args.outputPath, partitionSize = args.partitionedBinSize)
     } else {
       outputRdd.save(args,
         isSorted = args.sortReads || args.sortLexicographically)

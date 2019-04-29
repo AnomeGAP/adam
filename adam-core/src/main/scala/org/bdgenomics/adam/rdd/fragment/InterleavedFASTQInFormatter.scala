@@ -21,6 +21,7 @@ import java.io.OutputStream
 import org.apache.hadoop.conf.Configuration
 import org.bdgenomics.adam.converters.AlignmentRecordConverter
 import org.bdgenomics.adam.rdd.{ InFormatter, InFormatterCompanion }
+import org.bdgenomics.adam.sql.{ Fragment => FragmentProduct }
 import org.bdgenomics.formats.avro.Fragment
 import org.bdgenomics.utils.misc.Logging
 
@@ -28,26 +29,26 @@ import org.bdgenomics.utils.misc.Logging
  * InFormatter companion that creates an InFormatter that writes interleaved
  * FASTQ.
  */
-object InterleavedFASTQInFormatter extends InFormatterCompanion[Fragment, FragmentRDD, InterleavedFASTQInFormatter] {
+object InterleavedFASTQInFormatter extends InFormatterCompanion[Fragment, FragmentProduct, FragmentDataset, InterleavedFASTQInFormatter] {
 
   /**
    * Builds an InterleavedFASTQInFormatter to write Interleaved FASTQ.
    *
-   * @param gRdd GenomicRDD of Fragments. Used to get HadoopConfiguration.
+   * @param gDataset GenomicDataset of Fragments. Used to get HadoopConfiguration.
    * @return Returns a new Interleaved FASTQ InFormatter.
    */
-  def apply(gRdd: FragmentRDD): InterleavedFASTQInFormatter = {
-    new InterleavedFASTQInFormatter(gRdd.rdd.context.hadoopConfiguration)
+  def apply(gDataset: FragmentDataset): InterleavedFASTQInFormatter = {
+    new InterleavedFASTQInFormatter(gDataset.rdd.context.hadoopConfiguration)
   }
 }
 
 class InterleavedFASTQInFormatter private (
-    conf: Configuration) extends InFormatter[Fragment, FragmentRDD, InterleavedFASTQInFormatter] with Logging {
+    conf: Configuration) extends InFormatter[Fragment, FragmentProduct, FragmentDataset, InterleavedFASTQInFormatter] with Logging {
 
   protected val companion = InterleavedFASTQInFormatter
   private val converter = new AlignmentRecordConverter
-  private val writeSuffixes = conf.getBoolean(FragmentRDD.WRITE_SUFFIXES, false)
-  private val writeOriginalQualities = conf.getBoolean(FragmentRDD.WRITE_ORIGINAL_QUALITIES, false)
+  private val writeSuffixes = conf.getBoolean(FragmentDataset.WRITE_SUFFIXES, false)
+  private val writeOriginalQualities = conf.getBoolean(FragmentDataset.WRITE_ORIGINAL_QUALITIES, false)
 
   /**
    * Writes alignment records to an output stream in interleaved FASTQ format.

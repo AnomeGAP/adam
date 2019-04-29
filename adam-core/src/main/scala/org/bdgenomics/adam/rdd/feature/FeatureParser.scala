@@ -110,7 +110,7 @@ private[rdd] class GTFParser extends FeatureParser {
     val f = Feature.newBuilder()
       .setSource(source)
       .setFeatureType(featureType)
-      .setContigName(seqname)
+      .setReferenceName(seqname)
       .setStart(start.toLong - 1L) // GTF/GFF2 coordinate system is 1-based
       .setEnd(end.toLong) // GTF/GFF2 ranges are closed
 
@@ -154,8 +154,15 @@ private[rdd] object GFF3Parser {
  */
 private[rdd] class GFF3Parser extends FeatureParser {
 
+  // nucleotide + amino acid + ambiguity codes covers a-z
+  private val fastaRegex = "^[a-zA-Z]+$".r
+
   def isHeader(line: String): Boolean = {
-    line.startsWith("#") || line.isEmpty
+    line.isEmpty || line.startsWith("#") || line.startsWith(">")
+  }
+
+  def isFasta(line: String): Boolean = {
+    fastaRegex.pattern.matcher(line).matches()
   }
 
   override def parse(line: String,
@@ -170,6 +177,11 @@ private[rdd] class GFF3Parser extends FeatureParser {
 
     // check for invalid lines
     if (fields.length < 8 || fields.length > 9) {
+
+      // skip FASTA-formatted sequence
+      if (isFasta(line)) {
+        return None
+      }
       throwWarnOrNone("Invalid GFF3 line: %s", line, stringency)
     }
     val (seqid, source, featureType, start, end, score, strand, phase) =
@@ -183,7 +195,7 @@ private[rdd] class GFF3Parser extends FeatureParser {
     val f = Feature.newBuilder()
       .setSource(source)
       .setFeatureType(featureType)
-      .setContigName(seqid)
+      .setReferenceName(seqid)
       .setStart(start.toLong - 1L) // GFF3 coordinate system is 1-based
       .setEnd(end.toLong) // GFF3 ranges are closed
 
@@ -269,11 +281,11 @@ private[rdd] class IntervalListParser extends FeatureParser {
     if (fields.length != 5) {
       throwWarnOrNone("Invalid IntervalList line: %s", line, stringency)
     }
-    val (contigName, start, end, strand, featureName) =
+    val (referenceName, start, end, strand, featureName) =
       (fields(0), fields(1), fields(2), fields(3), fields(4))
 
     val f = Feature.newBuilder()
-      .setContigName(contigName)
+      .setReferenceName(referenceName)
       .setStart(start.toLong - 1) // IntervalList ranges are 1-based
       .setEnd(end.toLong) // IntervalList ranges are closed
       .setName(featureName)
@@ -317,7 +329,7 @@ private[rdd] class BEDParser extends FeatureParser {
     }
 
     val f = Feature.newBuilder()
-      .setContigName(fields(0))
+      .setReferenceName(fields(0))
       .setStart(fields(1).toLong) // BED ranges are 0-based
       .setEnd(fields(2).toLong) // BED ranges are closed-open
 
@@ -372,7 +384,7 @@ private[rdd] class NarrowPeakParser extends FeatureParser {
     }
 
     val f = Feature.newBuilder()
-      .setContigName(fields(0))
+      .setReferenceName(fields(0))
       .setStart(fields(1).toLong) // NarrowPeak ranges are 0-based
       .setEnd(fields(2).toLong) // NarrowPeak ranges are closed-open
 

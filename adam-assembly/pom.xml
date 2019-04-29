@@ -4,17 +4,13 @@
   <parent>
     <groupId>org.bdgenomics.adam</groupId>
     <artifactId>adam-parent-spark2_2.11</artifactId>
-    <version>0.24.0-SNAPSHOT</version>
+    <version>0.26.0</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
   <artifactId>adam-assembly-spark2_2.11</artifactId>
   <packaging>jar</packaging>
   <name>ADAM_${scala.version.prefix}: Assembly</name>
-  <properties>
-    <timestamp>${maven.build.timestamp}</timestamp>
-    <maven.build.timestamp.format>yyyy-MM-dd</maven.build.timestamp.format>
-  </properties>
   <build>
     <plugins>
       <plugin>

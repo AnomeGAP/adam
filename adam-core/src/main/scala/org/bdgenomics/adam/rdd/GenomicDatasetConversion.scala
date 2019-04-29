@@ -21,9 +21,9 @@ import org.apache.spark.api.java.function.Function2
 import org.apache.spark.sql.Dataset
 import scala.reflect.runtime.universe.TypeTag
 
-trait GenomicDatasetConversion[T <: Product, U <: GenomicDataset[_, T, U], X <: Product, Y <: GenomicDataset[_, X, Y]] extends Function2[U, Dataset[X], Y] {
+trait GenomicDatasetConversion[T, U <: Product, V <: GenomicDataset[T, U, V], X, Y <: Product, Z <: GenomicDataset[X, Y, Z]] extends Function2[V, Dataset[Y], Z] {
 
-  val xTag: TypeTag[X]
+  val yTag: TypeTag[Y]
 
-  def call(v1: U, v2: Dataset[X]): Y
+  def call(v1: V, v2: Dataset[Y]): Z
 }

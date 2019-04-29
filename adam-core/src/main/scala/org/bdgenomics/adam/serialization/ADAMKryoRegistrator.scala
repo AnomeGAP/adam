@@ -165,8 +165,8 @@ class ADAMKryoRegistrator extends KryoRegistrator with Logging {
     kryo.register(classOf[org.bdgenomics.adam.models.MdTag])
     kryo.register(classOf[org.bdgenomics.adam.models.MultiContigNonoverlappingRegions])
     kryo.register(classOf[org.bdgenomics.adam.models.NonoverlappingRegions])
-    kryo.register(classOf[org.bdgenomics.adam.models.RecordGroup])
-    kryo.register(classOf[org.bdgenomics.adam.models.RecordGroupDictionary])
+    kryo.register(classOf[org.bdgenomics.adam.models.ReadGroup])
+    kryo.register(classOf[org.bdgenomics.adam.models.ReadGroupDictionary])
     kryo.register(classOf[org.bdgenomics.adam.models.ReferencePosition],
       new org.bdgenomics.adam.models.ReferencePositionSerializer)
     kryo.register(classOf[org.bdgenomics.adam.models.ReferenceRegion])
@@ -235,8 +235,6 @@ class ADAMKryoRegistrator extends KryoRegistrator with Logging {
     // org.bdgenomics.formats.avro
     kryo.register(classOf[org.bdgenomics.formats.avro.AlignmentRecord],
       new AvroSerializer[org.bdgenomics.formats.avro.AlignmentRecord])
-    kryo.register(classOf[org.bdgenomics.formats.avro.Contig],
-      new AvroSerializer[org.bdgenomics.formats.avro.Contig])
     kryo.register(classOf[org.bdgenomics.formats.avro.Dbxref],
       new AvroSerializer[org.bdgenomics.formats.avro.Dbxref])
     kryo.register(classOf[org.bdgenomics.formats.avro.Feature],
@@ -255,8 +253,10 @@ class ADAMKryoRegistrator extends KryoRegistrator with Logging {
       new AvroSerializer[org.bdgenomics.formats.avro.ProcessingStep])
     kryo.register(classOf[org.bdgenomics.formats.avro.Read],
       new AvroSerializer[org.bdgenomics.formats.avro.Read])
-    kryo.register(classOf[org.bdgenomics.formats.avro.RecordGroup],
-      new AvroSerializer[org.bdgenomics.formats.avro.RecordGroup])
+    kryo.register(classOf[org.bdgenomics.formats.avro.ReadGroup],
+      new AvroSerializer[org.bdgenomics.formats.avro.ReadGroup])
+    kryo.register(classOf[org.bdgenomics.formats.avro.Reference],
+      new AvroSerializer[org.bdgenomics.formats.avro.Reference])
     kryo.register(classOf[org.bdgenomics.formats.avro.Sample],
       new AvroSerializer[org.bdgenomics.formats.avro.Sample])
     kryo.register(classOf[org.bdgenomics.formats.avro.Sequence],
@@ -283,9 +283,11 @@ class ADAMKryoRegistrator extends KryoRegistrator with Logging {
     try {
       kryo.register(Class.forName("org.apache.spark.internal.io.FileCommitProtocol$TaskCommitMessage"))
       kryo.register(Class.forName("org.apache.spark.sql.execution.datasources.FileFormatWriter$WriteTaskResult"))
+      kryo.register(Class.forName("org.apache.spark.sql.execution.datasources.BasicWriteTaskStats"))
+      kryo.register(Class.forName("org.apache.spark.sql.execution.datasources.ExecutedWriteSummary"))
     } catch {
       case cnfe: java.lang.ClassNotFoundException => {
-        log.info("Did not find Spark internal class. This is expected for Spark 1.")
+        if (log.isDebugEnabled) log.debug("Did not find Spark internal class. This is expected for earlier Spark versions.")
       }
     }
     kryo.register(classOf[org.apache.spark.sql.catalyst.expressions.UnsafeRow])
@@ -311,7 +313,6 @@ class ADAMKryoRegistrator extends KryoRegistrator with Logging {
     kryo.register(classOf[scala.Array[org.apache.spark.sql.types.StructField]])
     kryo.register(classOf[scala.Array[org.apache.spark.sql.types.StructType]])
     kryo.register(classOf[scala.Array[org.bdgenomics.formats.avro.AlignmentRecord]])
-    kryo.register(classOf[scala.Array[org.bdgenomics.formats.avro.Contig]])
     kryo.register(classOf[scala.Array[org.bdgenomics.formats.avro.Dbxref]])
     kryo.register(classOf[scala.Array[org.bdgenomics.formats.avro.Feature]])
     kryo.register(classOf[scala.Array[org.bdgenomics.formats.avro.Fragment]])
@@ -320,7 +321,8 @@ class ADAMKryoRegistrator extends KryoRegistrator with Logging {
     kryo.register(classOf[scala.Array[org.bdgenomics.formats.avro.OntologyTerm]])
     kryo.register(classOf[scala.Array[org.bdgenomics.formats.avro.NucleotideContigFragment]])
     kryo.register(classOf[scala.Array[org.bdgenomics.formats.avro.Read]])
-    kryo.register(classOf[scala.Array[org.bdgenomics.formats.avro.RecordGroup]])
+    kryo.register(classOf[scala.Array[org.bdgenomics.formats.avro.ReadGroup]])
+    kryo.register(classOf[scala.Array[org.bdgenomics.formats.avro.Reference]])
     kryo.register(classOf[scala.Array[org.bdgenomics.formats.avro.Sample]])
     kryo.register(classOf[scala.Array[org.bdgenomics.formats.avro.Sequence]])
     kryo.register(classOf[scala.Array[org.bdgenomics.formats.avro.Slice]])

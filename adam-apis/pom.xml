@@ -4,13 +4,13 @@
   <parent>
     <groupId>org.bdgenomics.adam</groupId>
     <artifactId>adam-parent-spark2_2.11</artifactId>
-    <version>0.24.0-SNAPSHOT</version>
+    <version>0.26.0</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
   <artifactId>adam-apis-spark2_2.11</artifactId>
   <packaging>jar</packaging>
-  <name>ADAM_${scala.version.prefix}: APIs for Java</name>
+  <name>ADAM_${scala.version.prefix}: APIs for Java, Python</name>
   <build>
     <plugins>
       <!-- disable surefire -->

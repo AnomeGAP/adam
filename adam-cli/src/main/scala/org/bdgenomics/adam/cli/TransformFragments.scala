@@ -18,10 +18,11 @@
 package org.bdgenomics.adam.cli
 
 import org.apache.spark.SparkContext
+import org.bdgenomics.adam.io.FastqRecordReader
 import org.bdgenomics.adam.rdd.ADAMContext._
 import org.bdgenomics.adam.rdd.ADAMSaveAnyArgs
 import org.bdgenomics.adam.rdd.read.QualityScoreBin
-import org.bdgenomics.adam.rdd.fragment.FragmentRDD
+import org.bdgenomics.adam.rdd.fragment.FragmentDataset
 import org.bdgenomics.utils.cli._
 import org.bdgenomics.utils.misc.Logging
 import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
@@ -58,6 +59,8 @@ class TransformFragmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parque
   var markDuplicates: Boolean = false
   @Args4jOption(required = false, name = "-bin_quality_scores", usage = "Rewrites quality scores of reads into bins from a string of bin descriptions, e.g. 0,20,10;20,40,30.")
   var binQualityScores: String = null
+  @Args4jOption(required = false, name = "-max_read_length", usage = "Maximum FASTQ read length, defaults to 10,000 base pairs (bp).")
+  var maxReadLength: Int = 0
 
   // this is required because of the ADAMSaveAnyArgs trait... fix this trait???
   var sortFastqOutput = false
@@ -71,7 +74,7 @@ class TransformFragments(protected val args: TransformFragmentsArgs) extends BDG
    * @return If the mark duplicates argument is sent, deduplicates the reads.
    *   Else, returns the input reads.
    */
-  def maybeDedupe(reads: FragmentRDD): FragmentRDD = {
+  def maybeDedupe(reads: FragmentDataset): FragmentDataset = {
     if (args.markDuplicates) {
       reads.markDuplicates()
     } else {
@@ -84,7 +87,7 @@ class TransformFragments(protected val args: TransformFragmentsArgs) extends BDG
    * @return If the binQualityScores argument is set, rewrites the quality scores of the
    *   reads into bins. Else, returns the original RDD.
    */
-  private def maybeBin(rdd: FragmentRDD): FragmentRDD = {
+  private def maybeBin(rdd: FragmentDataset): FragmentDataset = {
     Option(args.binQualityScores).fold(rdd)(binDescription => {
       val bins = QualityScoreBin(binDescription)
       rdd.binQualityScores(bins)
@@ -102,6 +105,9 @@ class TransformFragments(protected val args: TransformFragmentsArgs) extends BDG
     if (args.sortLexicographically) {
       require(args.saveAsReads,
         "-sort_lexicographically is only valid if -save_as_reads is given.")
+    }
+    if (args.maxReadLength > 0) {
+      FastqRecordReader.setMaxReadLength(sc.hadoopConfiguration, args.maxReadLength)
     }
 
     val rdd = if (args.loadAsReads) {

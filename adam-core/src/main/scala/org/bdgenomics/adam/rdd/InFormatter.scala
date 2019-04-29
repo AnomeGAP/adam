@@ -19,9 +19,9 @@ package org.bdgenomics.adam.rdd
 
 import java.io.OutputStream
 
-private[rdd] class InFormatterRunner[T, U <: GenomicRDD[T, U], V <: InFormatter[T, U, V]](iter: Iterator[T],
-                                                                                          formatter: V,
-                                                                                          os: OutputStream) extends Runnable {
+private[rdd] class InFormatterRunner[T, U <: Product, V <: GenomicDataset[T, U, V], W <: InFormatter[T, U, V, W]](iter: Iterator[T],
+                                                                                                                  formatter: W,
+                                                                                                                  os: OutputStream) extends Runnable {
 
   def run() {
     formatter.write(os, iter)
@@ -31,25 +31,25 @@ private[rdd] class InFormatterRunner[T, U <: GenomicRDD[T, U], V <: InFormatter[
 }
 
 /**
- * A trait for singleton objects that build an InFormatter from a GenomicRDD.
+ * A trait for singleton objects that build an InFormatter from a GenomicDataset.
  *
  * Often, when creating an outputstream, we need to add metadata to the output
  * that is not attached to individual records. An example of this is writing a
  * header with contig/read group/format info, as is done with SAM/BAM/VCF.
  *
  * @tparam T The type of the records this InFormatter writes out.
- * @tparam U The type of the GenomicRDD this companion object understands.
+ * @tparam U The type of the GenomicDataset this companion object understands.
  * @tparam V The type of InFormatter this companion object creates.
  */
-trait InFormatterCompanion[T, U <: GenomicRDD[T, U], V <: InFormatter[T, U, V]] {
+trait InFormatterCompanion[T, U <: Product, V <: GenomicDataset[T, U, V], W <: InFormatter[T, U, V, W]] {
 
   /**
-   * Creates an InFormatter from a GenomicRDD.
+   * Creates an InFormatter from a GenomicDataset.
    *
-   * @param gRdd The GenomicRDD to get metadata from.
+   * @param gDataset The GenomicDataset to get metadata from.
    * @return Returns an InFormatter with attached metadata.
    */
-  def apply(gRdd: U): V
+  def apply(gDataset: V): W
 }
 
 /**
@@ -57,9 +57,9 @@ trait InFormatterCompanion[T, U <: GenomicRDD[T, U], V <: InFormatter[T, U, V]] 
  *
  * @tparam T The type of records being formatted.
  */
-trait InFormatter[T, U <: GenomicRDD[T, U], V <: InFormatter[T, U, V]] extends Serializable {
+trait InFormatter[T, U <: Product, V <: GenomicDataset[T, U, V], W <: InFormatter[T, U, V, W]] extends Serializable {
 
-  protected val companion: InFormatterCompanion[T, U, V]
+  protected val companion: InFormatterCompanion[T, U, V, W]
 
   /**
    * Writes records from an iterator into an output stream.

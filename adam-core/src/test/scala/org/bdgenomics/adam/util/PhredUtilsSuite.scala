@@ -29,9 +29,35 @@ class PhredUtilsSuite extends FunSuite {
 
   test("convert high phred score to log and back") {
     val logP = PhredUtils.phredToLogProbability(1000)
-    println(logP)
     val phred = PhredUtils.logProbabilityToPhred(logP)
-    println(phred)
     assert(phred === 1000)
+  }
+
+  test("convert overflowing phred score to log and back and clip") {
+    val logP = PhredUtils.phredToLogProbability(10000)
+    val phred = PhredUtils.logProbabilityToPhred(logP)
+    assert(phred === 3233)
+  }
+
+  test("convert negative zero log probability to phred and clip") {
+    val phred = PhredUtils.logProbabilityToPhred(-0.0)
+    assert(phred === 3233)
+  }
+
+  test("round trip log probabilities") {
+    def roundTrip(i: Int): Int = {
+      PhredUtils.logProbabilityToPhred(PhredUtils.phredToLogProbability(i))
+    }
+
+    (0 to 3228).foreach(i => {
+      assert(i === roundTrip(i))
+    })
+
+    // there is roundoff above 3228 due to floating point underflow
+    assert(3228 === roundTrip(3229))
+    assert(3230 === roundTrip(3230))
+    assert(3230 === roundTrip(3231))
+    assert(3233 === roundTrip(3232))
+    assert(3233 === roundTrip(3233))
   }
 }

@@ -55,11 +55,20 @@ class ADAMContextSuite extends ADAMFunSuite {
     new ADAMContext(sc)
   }
 
+  sparkTest("load from an empty directory") {
+    val emptyDirectory = java.nio.file.Files.createTempDirectory("").toAbsolutePath.toString
+
+    val e = intercept[FileNotFoundException] {
+      sc.loadAlignments(emptyDirectory)
+    }
+    assert(e.getMessage.contains("directory is empty"))
+  }
+
   sparkTest("sc.loadParquet should not fail on unmapped reads") {
     val readsFilepath = testFile("unmapped.sam")
 
     // Convert the reads12.sam file into a parquet file
-    val bamReads: RDD[AlignmentRecord] = sc.loadAlignments(readsFilepath).rdd
+    val bamReads = sc.loadAlignments(readsFilepath)
     assert(bamReads.rdd.count === 200)
   }
 
@@ -114,7 +123,7 @@ class ADAMContextSuite extends ADAMFunSuite {
     val path = testFile("small.sam")
     val reads: RDD[AlignmentRecord] = sc.loadAlignments(path)
       .rdd
-      .filter(a => (a.getReadMapped && a.getMapq > 30))
+      .filter(a => (a.getReadMapped && a.getMappingQuality > 30))
     assert(reads.count() === 18)
   }
 
@@ -163,11 +172,18 @@ class ADAMContextSuite extends ADAMFunSuite {
     assert(annot.count == 369)
     val arr = annot.collect
 
-    val first = arr.find(f => f.getContigName == "chr1" && f.getStart == 14415L && f.getEnd == 14499L).get
+    val first = arr.find(f => f.getReferenceName == "chr1" && f.getStart == 14415L && f.getEnd == 14499L).get
     assert(first.getName === "gn|DDX11L1;gn|RP11-34P13.2;ens|ENSG00000223972;ens|ENSG00000227232;vega|OTTHUMG00000000958;vega|OTTHUMG00000000961")
 
-    val last = arr.find(f => f.getContigName == "chrY" && f.getStart == 27190031L && f.getEnd == 27190210L).get
+    val last = arr.find(f => f.getReferenceName == "chrY" && f.getStart == 27190031L && f.getEnd == 27190210L).get
     assert(last.getName === "gn|BPY2C;ccds|CCDS44030;ens|ENSG00000185894;vega|OTTHUMG00000045199")
+  }
+
+  sparkTest("can read a small .vcf file with a validation issue") {
+    val path = testFile("invalid/small.INFO_flag.vcf")
+
+    val vcs = sc.loadVcf(path, stringency = ValidationStringency.LENIENT)
+    assert(vcs.rdd.count === 1)
   }
 
   sparkTest("can read a small .vcf file") {
@@ -180,7 +196,7 @@ class ADAMContextSuite extends ADAMFunSuite {
 
     val vc = vcs.head
     val variant = vc.variant.variant
-    assert(variant.getContigName === "1")
+    assert(variant.getReferenceName === "1")
     assert(variant.getStart === 14396L)
     assert(variant.getEnd === 14400L)
     assert(variant.getReferenceAllele === "CTGT")
@@ -291,7 +307,7 @@ class ADAMContextSuite extends ADAMFunSuite {
       }
 
       assert(reads.rdd.collect.forall(_.getSequence.toString.length === 250))
-      assert(reads.rdd.collect.forall(_.getQual.toString.length === 250))
+      assert(reads.rdd.collect.forall(_.getQuality.toString.length === 250))
     }
   }
 
@@ -324,7 +340,7 @@ class ADAMContextSuite extends ADAMFunSuite {
       }
 
       assert(reads.rdd.collect.forall(_.getSequence.toString.length === 250))
-      assert(reads.rdd.collect.forall(_.getQual.toString.length === 250))
+      assert(reads.rdd.collect.forall(_.getQuality.toString.length === 250))
     }
   }
 
@@ -374,21 +390,22 @@ class ADAMContextSuite extends ADAMFunSuite {
 
   sparkTest("read a HLA fasta from GRCh38") {
     val inputPath = testFile("HLA_DQB1_05_01_01_02.fa")
-    val gRdd = sc.loadFasta(inputPath, 10000L)
-    assert(gRdd.sequences.records.size === 1)
-    assert(gRdd.sequences.records.head.name === "HLA-DQB1*05:01:01:02")
-    val fragments = gRdd.rdd.collect
+    val gDataset = sc.loadFasta(inputPath, 10000L)
+    assert(gDataset.sequences.records.size === 1)
+    assert(gDataset.sequences.records.head.name === "HLA-DQB1*05:01:01:02")
+    val fragments = gDataset.rdd.collect
     assert(fragments.size === 1)
     assert(fragments.head.getContigName === "HLA-DQB1*05:01:01:02")
   }
 
   sparkTest("read a gzipped fasta file") {
     val inputPath = testFile("chr20.250k.fa.gz")
-    val contigFragments: RDD[NucleotideContigFragment] = sc.loadFasta(inputPath, 10000L)
-      .rdd
-      .sortBy(_.getIndex.toInt)
+    val contigFragments = sc.loadFasta(inputPath, 10000L)
+      .transform((rdd: RDD[NucleotideContigFragment]) => {
+        rdd.sortBy(_.getIndex.toInt)
+      })
     assert(contigFragments.rdd.count() === 26)
-    val first: NucleotideContigFragment = contigFragments.first()
+    val first: NucleotideContigFragment = contigFragments.rdd.first()
     assert(first.getContigName === null)
     assert(first.getDescription === "gi|224384749|gb|CM000682.1| Homo sapiens chromosome 20, GRCh37 primary reference assembly")
     assert(first.getIndex === 0)
@@ -435,6 +452,29 @@ class ADAMContextSuite extends ADAMFunSuite {
     assert(reads.rdd.count == 4)
   }
 
+  sparkTest("loadIndexedBam should throw exception without an index file") {
+    val refRegion = ReferenceRegion("1", 26472780, 26472790)
+    val path = testFile("bams/small.bam")
+    intercept[FileNotFoundException] {
+      sc.loadIndexedBam(path, Iterable(refRegion))
+    }
+  }
+
+  sparkTest("loadIndexedBam should work with indexed file with index naming format <filename>.bai") {
+    val refRegion = ReferenceRegion("1", 1, 100)
+    val path = testFile("indexed_bams/sorted.2.bam")
+    val reads = sc.loadIndexedBam(path, refRegion)
+    assert(reads.rdd.count == 1)
+  }
+
+  sparkTest("loadIndexedBam glob should throw exception without an index file") {
+    val refRegion = ReferenceRegion("1", 26472780, 26472790)
+    val path = new File(testFile("bams/small.bam")).getParent()
+    intercept[FileNotFoundException] {
+      sc.loadIndexedBam(path, Iterable(refRegion))
+    }
+  }
+
   sparkTest("loadBam with a glob") {
     val path = testFile("indexed_bams/sorted.bam").replace(".bam", "*.bam")
     val reads = sc.loadBam(path)
@@ -450,15 +490,21 @@ class ADAMContextSuite extends ADAMFunSuite {
   sparkTest("load vcf with a glob") {
     val path = testFile("bqsr1.vcf").replace("bqsr1", "*")
 
-    val variants = sc.loadVcf(path).toVariants
-    assert(variants.rdd.count === 782)
+    val vcs = sc.loadVcf(path)
+
+    assert(vcs.samples.size === 8)
+    assert(vcs.headerLines.size === 154)
+    assert(vcs.sequences.size === 31)
+
+    val variants = vcs.toVariants
+    assert(variants.rdd.count === 778)
   }
 
   sparkTest("load vcf from a directory") {
     val path = new File(testFile("vcf_dir/1.vcf")).getParent()
 
     val variants = sc.loadVcf(path).toVariants
-    assert(variants.rdd.count === 681)
+    assert(variants.rdd.count === 682)
   }
 
   sparkTest("load gvcf which contains a multi-allelic row from a directory") {
@@ -567,9 +613,9 @@ class ADAMContextSuite extends ADAMFunSuite {
   sparkTest("loadAlignments should not fail on single-end and paired-end fastq reads") {
     val readsFilepath1 = testFile("bqsr1-r1.fq")
     val readsFilepath2 = testFile("bqsr1-r2.fq")
-    val fastqReads1: RDD[AlignmentRecord] = sc.loadAlignments(readsFilepath1).rdd
-    val fastqReads2: RDD[AlignmentRecord] = sc.loadAlignments(readsFilepath2).rdd
-    val pairedReads: RDD[AlignmentRecord] = sc.loadAlignments(readsFilepath1, optPathName2 = Option(readsFilepath2)).rdd
+    val fastqReads1 = sc.loadAlignments(readsFilepath1)
+    val fastqReads2 = sc.loadAlignments(readsFilepath2)
+    val pairedReads = sc.loadAlignments(readsFilepath1, optPathName2 = Option(readsFilepath2))
     assert(fastqReads1.rdd.count === 488)
     assert(fastqReads2.rdd.count === 488)
     assert(pairedReads.rdd.count === 976)
@@ -591,6 +637,34 @@ class ADAMContextSuite extends ADAMFunSuite {
     assert(fragments.rdd.count === 3)
     val reads = fragments.toReads
     assert(reads.rdd.count === 6)
+  }
+
+  sparkTest("load paired fastq") {
+    val pathR1 = testFile("proper_pairs_1.fq")
+    val pathR2 = testFile("proper_pairs_2.fq")
+    val reads = sc.loadPairedFastq(pathR1, pathR2)
+    assert(reads.rdd.count === 6)
+  }
+
+  sparkTest("load paired fastq without cache") {
+    val pathR1 = testFile("proper_pairs_1.fq")
+    val pathR2 = testFile("proper_pairs_2.fq")
+    val reads = sc.loadPairedFastq(pathR1, pathR2, persistLevel = None)
+    assert(reads.rdd.count === 6)
+  }
+
+  sparkTest("load paired fastq as fragments") {
+    val pathR1 = testFile("proper_pairs_1.fq")
+    val pathR2 = testFile("proper_pairs_2.fq")
+    val fragments = sc.loadPairedFastqAsFragments(pathR1, pathR2)
+    assert(fragments.rdd.count === 3)
+  }
+
+  sparkTest("load paired fastq as fragments without cache") {
+    val pathR1 = testFile("proper_pairs_1.fq")
+    val pathR2 = testFile("proper_pairs_2.fq")
+    val fragments = sc.loadPairedFastqAsFragments(pathR1, pathR2, persistLevel = None)
+    assert(fragments.rdd.count === 3)
   }
 
   sparkTest("load HTSJDK sequence dictionary") {
@@ -651,11 +725,11 @@ class ADAMContextSuite extends ADAMFunSuite {
     val sd = sc.loadSequenceDictionary(sdPath)
 
     val path = testFile("gencode.v7.annotation.trunc10.bed") // uses "chr1"
-    val featureRdd = sc.sc.loadFeatures(path, optSequenceDictionary = Some(sd))
-    val features: RDD[Feature] = featureRdd.rdd
+    val featureDs = sc.sc.loadFeatures(path, optSequenceDictionary = Some(sd))
+    val features: RDD[Feature] = featureDs.rdd
     assert(features.count === 10)
 
-    val sequences = featureRdd.sequences
+    val sequences = featureDs.sequences
     assert(sequences.records.size === 93)
     assert(sequences("chr1").isDefined)
     assert(sequences("chr1").get.length === 249250621L)
@@ -668,11 +742,11 @@ class ADAMContextSuite extends ADAMFunSuite {
     val sd = sc.loadSequenceDictionary(sdPath)
 
     val path = testFile("dvl1.200.bed") // uses "1"
-    val featureRdd = sc.sc.loadFeatures(path, optSequenceDictionary = Some(sd))
-    val features: RDD[Feature] = featureRdd.rdd
+    val featureDs = sc.sc.loadFeatures(path, optSequenceDictionary = Some(sd))
+    val features: RDD[Feature] = featureDs.rdd
     assert(features.count === 197)
 
-    val sequences = featureRdd.sequences
+    val sequences = featureDs.sequences
     assert(sequences.records.size === 93)
     assert(sequences("chr1").isDefined)
     assert(sequences("chr1").get.length === 249250621L)

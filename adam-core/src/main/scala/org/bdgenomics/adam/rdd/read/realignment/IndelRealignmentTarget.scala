@@ -88,7 +88,7 @@ private[realignment] object IndelRealignmentTarget {
     maxIndelSize: Int): Seq[IndelRealignmentTarget] = CreateIndelRealignmentTargets.time {
 
     val region = ReferenceRegion.unstranded(read.record)
-    val refId = read.record.getContigName
+    val refId = read.record.getReferenceName
     var pos = List[ReferenceRegion]()
     var referencePos = read.record.getStart
     val cigar = read.samtoolsCigar
@@ -149,7 +149,7 @@ private[adam] class IndelRealignmentTargetSerializer extends Serializer[IndelRea
 
 private[adam] class IndelRealignmentTarget(
     val variation: Option[ReferenceRegion],
-    val readRange: ReferenceRegion) extends Logging {
+    val readRange: ReferenceRegion) extends Logging with Serializable {
 
   assert(variation.map(r => r.referenceName).forall(_ == readRange.referenceName))
 

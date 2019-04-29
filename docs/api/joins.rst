@@ -47,7 +47,7 @@ To perform a BroadcastRegionJoin, use the following:
 
     dataset1.broadcastRegionJoin(dataset2)
 
-Where ``dataset1`` and ``dataset2`` are ``GenomicRDD``\ s. If you used
+Where ``dataset1`` and ``dataset2`` are ``GenomicDataset``\ s. If you used
 the ADAMContext to read a genomic dataset into memory, this condition is
 met.
 
@@ -55,27 +55,37 @@ ADAM has a variety of region join types that you can perform on your
 data, and all are called in a similar way:
 
 -  Joins implemented across both shuffle and broadcast
--  Inner join
--  Right outer join
--  Shuffle-only joins
--  Full outer join
--  Inner join and group by left
--  Left outer join
--  Right outer join and group by left
--  Broadcast-only joins
--  Inner join and group by right
--  Right outer join and group by right
 
-A subset of these joins are depicted in Figure 2 below.
+   -  Inner join
+   -  Right outer join
+
+-  Shuffle-only joins
+
+   -  Full outer join
+   -  Inner join and group by left
+   -  Left outer join
+   -  Right outer join and group by left
+
+-  Broadcast-only joins
+
+   -  Inner join and group by right
+   -  Right outer join and group by right
+
+
+Given two GenomicDatasets
+
+.. figure:: img/join_rdds.png
+   :alt: Genomic Datasets for Joins
+
+A subset of these joins are depicted below.
 
 .. figure:: img/join_examples.png
    :alt: Joins Available
 
-   Joins Available
 
 One common pattern involves joining a single dataset against many
-datasets. An example of this is joining an RDD of features (e.g.,
-gene/exon coordinates) against many different RDDs of reads. If the
+datasets. An example of this is joining an genomic dataset of features (e.g.,
+gene/exon coordinates) against many different genomic datasets of reads. If the
 object that is being used many times (gene/exon coordinates, in this
 case), we can force that object to be broadcast once and reused many
 times with the ``broadcast()`` function. This pairs with the
@@ -113,7 +123,7 @@ expand from.
 Filter Genotypes by Features
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This query joins an RDD of Genotypes against an RDD of Features using an
+This query joins a genomic dataset of Genotypes against a genomic dataset of Features using an
 inner join. Because this is an inner join, records from either dataset
 that do not pair to the other are automatically dropped, providing the
 filter we are interested in. This query is useful for trying to identify
@@ -150,12 +160,12 @@ smaller in size than genotypic data.
 Group overlapping variant data by the gene they overlap
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This query joins an RDD of Variants against an RDD of Features, and
-immediately performs a group-by on the Feature. This produces an RDD
+This query joins a genomic dataset of Variants against a genomic dataset of Features, and
+immediately performs a group-by on the Feature. This produces a genomic dataset
 whose elements are a tuple containing a Feature, and all of the Variants
 overlapping the Feature. This produces an RDD whose elements are tuples
 containing a Feature and all of the Variants overlapping the
-Feature.This query is useful for trying to identify annotated variants
+Feature. This query is useful for trying to identify annotated variants
 that may interact (identifying frameshift mutations within a transcript
 that may act as a pair to shift and then restore the reading frame) or
 as the start of a query that computes variant density over a set of
@@ -188,7 +198,7 @@ optimize by combining the join and group-by.
 Separate reads into overlapping and non-overlapping features
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This query joins an RDD of reads with an RDD of features using an outer
+This query joins a genomic dataset of reads with a genomic dataset of features using an outer
 join. The outer join will produce an RDD where each read is optionally
 mapped to a feature. If a given read does not overlap with any features
 provided, it is paired with a ``None``. After we perform the join, we

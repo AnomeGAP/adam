@@ -32,15 +32,15 @@ class FlagStatSuite extends ADAMFunSuite {
       AlignmentRecordField.readMapped,
       AlignmentRecordField.mateMapped,
       AlignmentRecordField.readPaired,
-      AlignmentRecordField.contigName,
-      AlignmentRecordField.mateContigName,
+      AlignmentRecordField.referenceName,
+      AlignmentRecordField.mateReferenceName,
       AlignmentRecordField.primaryAlignment,
       AlignmentRecordField.duplicateRead,
       AlignmentRecordField.readMapped,
       AlignmentRecordField.mateMapped,
       AlignmentRecordField.readInFragment,
       AlignmentRecordField.properPair,
-      AlignmentRecordField.mapq,
+      AlignmentRecordField.mappingQuality,
       AlignmentRecordField.failedVendorQualityChecks)
 
     val adamFile: RDD[AlignmentRecord] = sc.loadAlignments(inputPath, optProjection = Some(projection)).rdd
