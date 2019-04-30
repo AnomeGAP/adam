@@ -24,7 +24,7 @@ class AtgxReadsQualFilter extends java.io.Serializable {
     iter
       .flatMap(
         x => {
-          val failCount = scan(x.getQual.reverse, minQual, maxCount, 0)
+          val failCount = scan(x.getQuality.reverse, minQual, maxCount, 0)
           if (!invFlag) {
             if (failCount < maxCount)
               Some(x)

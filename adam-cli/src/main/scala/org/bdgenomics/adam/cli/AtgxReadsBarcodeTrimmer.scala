@@ -46,13 +46,13 @@ class AtgxReadsBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, w
 
   private def trimBarcode(r1: AlignmentRecord): (AlignmentRecord, Int) = {
     val seq = r1.getSequence
-    val quality = r1.getQual
+    val quality = r1.getQuality
     // create a new String to allow the original String to be GC
     val barcode = new String(seq.substring(0, barcodeLen))
     val code = matchWhitelist(barcode)
 
     r1.setSequence(new String(seq.substring(barcodeLen + nMerLen)))
-    r1.setQual(new String(quality.substring(barcodeLen + nMerLen)))
+    r1.setQuality(new String(quality.substring(barcodeLen + nMerLen)))
     val (org, iw) = AtgxReadsInfoParser.parseFromName(r1.getReadName)
     iw.setBarcode(code)
     r1.setReadName(AtgxReadsInfoParser.updateName(org, iw))

@@ -8,8 +8,8 @@ class AtgxReadsHeadTailTrimmer extends Serializable {
       val len = record.getSequence.length
       val newSeq = new String(record.getSequence.substring(1, len - 2))
       record.setSequence(newSeq)
-      val newQuality = new String(record.getQual.substring(1, len - 2))
-      record.setQual(newQuality)
+      val newQuality = new String(record.getQuality.substring(1, len - 2))
+      record.setQuality(newQuality)
 
       record
     }

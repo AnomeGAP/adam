@@ -105,8 +105,8 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
 
   // convert Illumina 1.8+ Phred+33 quality score, with value range of 33-74, to depth encoded value
   def encodeQual(item: AlignmentRecord, depth: Int): AlignmentRecord = {
-    item.setQual(
-      item.getQual
+    item.setQuality(
+      item.getQuality
         .map(
           x => {
             if (x.toInt > qualMax || x.toInt < qualMin)
@@ -118,8 +118,8 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
   }
 
   def decodeQual(item: AlignmentRecord): (String, Array[Int]) = {
-    (item.getQual.map { x => qLevel(x.toInt - qualMin).toChar },
-      item.getQual.map { x => if (x > inverseDLevel.length) 5 else inverseDLevel(x.toInt - qualMin) }.toArray)
+    (item.getQuality.map { x => qLevel(x.toInt - qualMin).toChar },
+      item.getQuality.map { x => if (x > inverseDLevel.length) 5 else inverseDLevel(x.toInt - qualMin) }.toArray)
   }
 }
 

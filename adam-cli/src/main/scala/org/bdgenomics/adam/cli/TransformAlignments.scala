@@ -694,10 +694,10 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         val maxLQ = args.maxLQBase
         val qualRdd =
           if (args.filterLQReads) {
-            AlignmentRecordRDD(
+            AlignmentRecordDataset(
               barcodeTrimmedRdd.mapPartitions(new AtgxReadsQualFilter().filterReads(_, minQ, maxLQ, true)),
               outputRdd.sequences,
-              outputRdd.recordGroups,
+              outputRdd.readGroups,
               outputRdd.processingSteps)
               .saveAsParquet(args.outputPath + "_LQfiltered",
                 128 * 1024 * 1024,
@@ -731,10 +731,10 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         val filteredRdd =
           if (args.filterN) {
             // generate and save N filtered AlignmentRecord entry
-            AlignmentRecordRDD(
+            AlignmentRecordDataset(
               nucTrimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, true)),
               outputRdd.sequences,
-              outputRdd.recordGroups,
+              outputRdd.readGroups,
               outputRdd.processingSteps)
               .saveAsParquet(args.outputPath + "_Nfiltered",
                 128 * 1024 * 1024,
@@ -776,10 +776,10 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
             val lcKmer = args.lcKmer
             val lcThresholdLenFactor = args.lcThresholdLenFactor
             // generate and save LC filtered AlignmentRecord entry
-            AlignmentRecordRDD(
+            AlignmentRecordDataset(
               lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true, lcKmer, lcThresholdLenFactor)),
               outputRdd.sequences,
-              outputRdd.recordGroups,
+              outputRdd.readGroups,
               outputRdd.processingSteps)
               .saveAsParquet(args.outputPath + "_LCfiltered",
                 128 * 1024 * 1024,
@@ -802,7 +802,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         retRdd
       }
 
-      AlignmentRecordRDD(atgxRdd, outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
+      AlignmentRecordDataset(atgxRdd, outputRdd.sequences, outputRdd.readGroups, outputRdd.processingSteps)
         .save(args, isSorted = args.sortReads || args.sortLexicographically)
       tenXBarcodeTrimmer.map(_.statistics())
     } else if (args.atgxTransform) {
@@ -815,7 +815,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         .repartitionAndSortWithinPartitions(new NewPosBinPartitioner(dict))
         .map(_._2)
 
-      AlignmentRecordRDD(rdd, outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
+      AlignmentRecordDataset(rdd, outputRdd.sequences, outputRdd.readGroups, outputRdd.processingSteps)
         .save(args, isSorted = args.sortReads || args.sortLexicographically)
 
       renameWithXPrefix(args.outputPath, dict)

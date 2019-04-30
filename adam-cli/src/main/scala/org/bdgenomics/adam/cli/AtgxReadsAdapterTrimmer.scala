@@ -141,9 +141,9 @@ class AtgxReadsAdapterTrimmer {
 
   private def trimAdapter(record: AlignmentRecord, len: Int): AlignmentRecord = {
     val newSeq = new String(record.getSequence.substring(0, len))
-    val newQuality = new String(record.getQual.substring(0, len))
+    val newQuality = new String(record.getQuality.substring(0, len))
     record.setSequence(newSeq)
-    record.setQual(newQuality)
+    record.setQuality(newQuality)
 
     record
   }

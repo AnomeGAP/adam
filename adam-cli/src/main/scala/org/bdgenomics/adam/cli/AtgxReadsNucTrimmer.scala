@@ -51,8 +51,8 @@ class AtgxReadsNucTrimmer {
     record.setSequence(trimmedSeq)
 
     val len = seq.length - trimmedSeq.length
-    val newQuality = record.getQual.substring(len)
-    record.setQual(newQuality)
+    val newQuality = record.getQuality.substring(len)
+    record.setQuality(newQuality)
 
     record
   }
@@ -62,8 +62,8 @@ class AtgxReadsNucTrimmer {
     val trimmedSeq = trimT(seq)
     record.setSequence(trimmedSeq)
 
-    val newQuality = record.getQual.substring(0, trimmedSeq.length)
-    record.setQual(newQuality)
+    val newQuality = record.getQuality.substring(0, trimmedSeq.length)
+    record.setQuality(newQuality)
 
     record
   }
