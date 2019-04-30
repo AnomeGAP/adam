@@ -14,7 +14,7 @@ object AtgxTransformAlignments {
   def mkPosBinIndices(sd: SequenceDictionary, partitionSize: Int = 1000000): Map[String, Int] = {
     val filteredContigNames = sd.records
       .filterNot(x => stopwords.exists(x.name.contains))
-      .sortBy(x => x.toADAMReference.getIndex.toInt)
+      .sortBy(x => x.index.get)
       .map(x => {
         if (x.name.startsWith("HLA-")) ("HLA", 0)
         else if (x.name.endsWith("_alt")) ("alt", 0)
@@ -115,7 +115,7 @@ class AtgxTransformAlignments {
 
   // sort the contigs by its ReferenceIndex in SequenceDirectory then zip them with index
   def mkReferenceIdMap(sd: SequenceDictionary): Map[String, Int] = {
-    val ref: Map[String, Int] = sd.records.map(x => (x.name, x.toADAMReference.getIndex.toInt)).toMap.withDefaultValue(10000)
+    val ref: Map[String, Int] = sd.records.map(x => (x.name, x.index.get)).toMap.withDefaultValue(10000)
     val ucsc = (1 to 22).map(i => "chr" + i) ++ Seq("chrX", "chrY", "chrM")
     val grch37 = (1 to 22).map(_.toString) ++ Seq("X", "Y", "MT")
     (ucsc.map(x => (x, ref(x))).sortBy(_._2).map(_._1).zipWithIndex ++
@@ -126,7 +126,7 @@ class AtgxTransformAlignments {
     val partitionSize: Int = 1000000
     val binSizeMap = mkBinSizeMap()
     val map = mkReferenceIdMap(sd)
-    val refIndexMap = sd.records.map(x => (x.name, "%05d".format(x.toADAMReference.getIndex.toInt))).toMap
+    val refIndexMap = sd.records.map(x => (x.name, "%05d".format(x.index.get))).toMap
     val r = new scala.util.Random // divide unmapped reads equally via random numbers
     val prewords = Seq("chrU_", "chrUn_", "chrEBV", "CAST", "JH", "KB", "KK", "KQ", "KV", "MG", "PWK", "WSB")
     val sufwords = Seq("_decoy", "_random")
