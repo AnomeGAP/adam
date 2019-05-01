@@ -819,8 +819,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         .save(args, isSorted = args.sortReads || args.sortLexicographically)
 
       renameWithXPrefix(args.outputPath, dict)
-    }
-    if (args.partitionByStartPos) {
+    } else if (args.partitionByStartPos) {
       if (outputRdd.sequences.isEmpty) {
         log.warn("This dataset is not aligned and therefore will not benefit from being saved as a partitioned dataset")
       }
