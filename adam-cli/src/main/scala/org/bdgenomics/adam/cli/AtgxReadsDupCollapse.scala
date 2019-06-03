@@ -20,6 +20,7 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
         fw => {
           val rc = new AlignmentRecord
           rc.setSequence(reverseComplementary(fw.getSequence))
+          rc.setQual(fw.getQual.reverse)
           val (_, iw) = AtgxReadsInfoParser.parseFromName(fw.getReadName)
           ArrayBuffer[(Boolean, Long, AlignmentRecord)](
             (false, iw.getID, fw),
