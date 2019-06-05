@@ -43,7 +43,7 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
               max
             }
             // encode the quality and add depth info
-            .map(i => (qLevel(i - qualMin) + encodedDepth).toChar)
+            .map(i => (qLevel(i.toInt - qualMin) + encodedDepth).toChar)
             .mkString
           val min = list.minBy(_._2)._3
           min.setQual(encodedQual)
