@@ -33,22 +33,28 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
         case (_, list) =>
           val depth = list.size
           val encodedDepth = depthEncoder(depth)
-          val qual = list.map(_._3.getQual.toList)
-          // get the best quality for each position in read
-          val encodedQual = qual.transpose
-            .map { i =>
-              val max = i.max
-              if (max.toInt > qualMax || max.toInt < qualMin)
+          val quals = list.map(_._3.getQual.toList)
+          val len = list.head._3.getQual.length
+          val bestQual = chooseBestQual(quals, len - 1, List())
+            .map { q =>
+              if (q > qualMax || q < qualMin)
                 throw new Exception("given quality does not follow Illumina 1.8+ Phred+33 quality score format")
-              max
+              (qLevel(q - qualMin) + encodedDepth - 1).toChar
             }
-            // encode the quality and add depth info
-            .map(i => (qLevel(i.toInt - qualMin) + encodedDepth).toChar)
             .mkString
           val min = list.minBy(_._2)._3
-          min.setQual(encodedQual)
+          min.setQual(bestQual)
           min
       }
+  }
+
+  def chooseBestQual(chars: List[List[Char]], idx: Int, accum: List[Char]): List[Int] = {
+    if (idx < 0) {
+      accum.map(_.toInt)
+    } else {
+      val bestQual = chars.map(c => c(idx)).max
+      chooseBestQual(chars, idx - 1, bestQual :: accum)
+    }
   }
 }
 
