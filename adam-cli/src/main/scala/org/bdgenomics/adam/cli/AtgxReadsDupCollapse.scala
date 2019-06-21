@@ -20,7 +20,7 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
         fw => {
           val rc = new AlignmentRecord
           rc.setSequence(reverseComplementary(fw.getSequence))
-          rc.setQual(fw.getQual.reverse)
+          rc.setQuality(fw.getQuality.reverse)
           val (_, iw) = AtgxReadsInfoParser.parseFromName(fw.getReadName)
           ArrayBuffer[(Boolean, Long, AlignmentRecord)](
             (false, iw.getID, fw),
@@ -33,8 +33,8 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
         case (_, list) =>
           val depth = list.size
           val encodedDepth = depthEncoder(depth)
-          val quals = list.map(_._3.getQual.toList)
-          val len = list.head._3.getQual.length
+          val quals = list.map(_._3.getQuality.toList)
+          val len = list.head._3.getQuality.length
           val bestQual = chooseBestQual(quals, len - 1, List())
             .map { q =>
               if (q > qualMax || q < qualMin)
@@ -43,7 +43,7 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
             }
             .mkString
           val min = list.minBy(_._2)._3
-          min.setQual(bestQual)
+          min.setQuality(bestQual)
           min
       }
   }
