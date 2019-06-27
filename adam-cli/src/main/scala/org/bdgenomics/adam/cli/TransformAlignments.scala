@@ -754,13 +754,19 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
 
         val lenFilteredRdd = polyGTrimmedRdd.mapPartitions(new AtgxReadsLenFilter().filterLen(_, minLen))
 
+        val dedupRdd =
+          if (args.colDupReads)
+            new AtgxReadsDupCollapse().collapse(lenFilteredRdd)
+          else
+            lenFilteredRdd
+
         val lcFilteredRdd =
           if (args.filterLCReads) {
             val lcKmer = args.lcKmer
             val lcThresholdLenFactor = args.lcThresholdLenFactor
             // generate and save LC filtered AlignmentRecord entry
             AlignmentRecordRDD(
-              lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true, lcKmer, lcThresholdLenFactor)),
+              dedupRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true, lcKmer, lcThresholdLenFactor)),
               outputRdd.sequences,
               outputRdd.recordGroups,
               outputRdd.processingSteps)
@@ -771,18 +777,12 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
                 false
               )
 
-            lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false, lcKmer, lcThresholdLenFactor))
+            dedupRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false, lcKmer, lcThresholdLenFactor))
           } else {
-            lenFilteredRdd
+            dedupRdd
           }
 
-        val retRdd =
-          if (args.colDupReads)
-            new AtgxReadsDupCollapse().collapse(lcFilteredRdd)
-          else
-            lcFilteredRdd
-
-        retRdd
+        lcFilteredRdd
       }
 
       AlignmentRecordRDD(atgxRdd, outputRdd.sequences, outputRdd.recordGroups, outputRdd.processingSteps)
