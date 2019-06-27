@@ -12,8 +12,9 @@ class AtgxReadsPolyGTrimmer {
       val seq = record.getSequence
       val len = seq.length
       val pos = findFirstGPos(seq, len - 1, len - 1, 0, compareReq, maxMismatch, allowOneMismatchForEach)
+      val compareCount = len - 1 - pos
 
-      if (pos >= 0) {
+      if (pos >= 0 && compareCount >= compareReq) {
         val trimmedSeq = new String(seq.substring(0, pos))
         val trimmedQuality = new String(record.getQual.substring(0, pos))
         record.setSequence(trimmedSeq)
