@@ -1,8 +1,9 @@
 package org.bdgenomics.adam.cli
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{ FileSystem, Path }
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.Partitioner
+import org.bdgenomics.adam.cli.AtgxTransformAlignments.stopwords
 import org.bdgenomics.adam.models.SequenceDictionary
 import org.bdgenomics.formats.avro.AlignmentRecord
 
@@ -21,7 +22,7 @@ object AtgxTransformAlignments {
         else (x.name, x.length.toInt)
       })
       .distinct // remove deduplication of 'HLA=0' and "alt=0"
-
+    
     // duplicated reads => given-name_chromosome-index=num_bins
     // the num_bins = 0 stands for only one bin, 9M will created 10 bins (0-9)
     val um = (0 to 24).map(i => ("X-UNMAPPED@%05d".format(i), 0))
@@ -112,7 +113,13 @@ class AtgxTransformAlignments {
       "Y" -> 60000000, "MT" -> 17000
     ).mapValues(v => v / fold)
   }
-
+  
+  def mkBinSizeMap2(sd: SequenceDictionary, fold: Int = 10): collection.Map[String, Int] = {
+    sd.records
+      .map(x => (x.name, scala.math.ceil(x.length / 1000000.0).toInt * 1000000 / fold))
+      .toMap
+  }
+  
   // sort the contigs by its ReferenceIndex in SequenceDirectory then zip them with index
   def mkReferenceIdMap(sd: SequenceDictionary): Map[String, Int] = {
     val ref: Map[String, Int] = sd.records.map(x => (x.name, x.referenceIndex.get)).toMap.withDefaultValue(10000)
@@ -121,11 +128,24 @@ class AtgxTransformAlignments {
     (ucsc.map(x => (x, ref(x))).sortBy(_._2).map(_._1).zipWithIndex ++
       grch37.map(x => (x, ref(x))).sortBy(_._2).map(_._1).zipWithIndex).toMap
   }
+  
+  def mkReferenceIdMap2(sd: SequenceDictionary): Map[String, Int] = {
+    sd.records
+      .filterNot(x =>
+        AtgxTransformAlignments.stopwords.exists(x.name.contains) ||
+          x.name.startsWith("HLA-") ||
+          x.name.endsWith("_alt")
+      )
+      .sortBy(x => x.referenceIndex.get)
+      .map(x => x.name)
+      .zipWithIndex
+      .toMap
+  }
 
   def transform(sd: SequenceDictionary, iter: Iterator[AlignmentRecord], DisableSVDup: Boolean): Iterator[(String, AlignmentRecord)] = {
     val partitionSize: Int = 1000000
-    val binSizeMap = mkBinSizeMap()
-    val map = mkReferenceIdMap(sd)
+    val binSizeMap = mkBinSizeMap2(sd)
+    val map = mkReferenceIdMap2(sd)
     val refIndexMap = sd.records.map(x => (x.name, "%05d".format(x.referenceIndex.get))).toMap
     val r = new scala.util.Random // divide unmapped reads equally via random numbers
     val prewords = Seq("chrU_", "chrUn_", "chrEBV", "CAST", "JH", "KB", "KK", "KQ", "KV", "MG", "PWK", "WSB")
