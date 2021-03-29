@@ -24,6 +24,7 @@ import grizzled.slf4j.Logging
 import htsjdk.samtools.ValidationStringency
 import org.apache.parquet.filter2.predicate.FilterApi
 import org.apache.parquet.filter2.predicate.Operators.BooleanColumn
+import org.apache.parquet.hadoop.metadata.CompressionCodecName
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -187,6 +188,112 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
 
   @Args4jOption(required = false, name = "-disable_pg", usage = "Disable writing a new @PG line.")
   var disableProcessingStep = false
+
+  @Args4jOption(required = false, name = "-atgx_transform", usage = "Enable Atgenomix alignment transformation.")
+  var atgxTransform = false
+
+  @Args4jOption(required = false, name = "-disable_sv_dup", usage = "Disable duplication of sv calling reads, soft-clip or discordantly.")
+  var disableSVDup = false
+
+  @Args4jOption(required = false, name = "-tag_reads", usage = "tag read name with serial numbers for coding pair-end information")
+  var tagReadName = false
+
+  @Args4jOption(required = false, name = "-tag_partition_range", usage = "tag number for a partition",
+    depends = { Array[String]("-tag_reads") })
+  var tagPartRange = 2097152
+
+  @Args4jOption(required = false, name = "-tag_partition_num", usage = "maximum number of partitions supported by -tag_reads option",
+    depends = { Array[String]("-tag_reads") })
+  var tagPartNum = 524288
+
+  @Args4jOption(required = false, name = "-rand_assign_n", usage = "randomly assign N to one of the nucleotides A, C, G, and T",
+    depends = { Array[String]("-tag_reads") })
+  var randAssignN = false
+
+  @Args4jOption(required = false, name = "-filter_n", usage = "filter reads with uncalled base count >= max_N_count, defaulted as 2",
+    depends = { Array[String]("-tag_reads") })
+  var filterN = false
+
+  @Args4jOption(required = false, name = "-max_N_count", usage = "upper limit for uncalled base count",
+    depends = { Array[String]("-tag_reads", "-filter_n") })
+  var maxNCount: Int = 2
+
+  @Args4jOption(required = false, name = "-ten_x", usage = "transform 10x format",
+    depends = { Array[String]("-tag_reads") })
+  var tenX = false
+
+  @Args4jOption(required = false, name = "-barcode_len", usage = "barcode length",
+    depends = { Array[String]("-tag_reads", "-ten_x") })
+  var barcodeLen = 16
+
+  @Args4jOption(required = false, name = "-n_mer_len", usage = "N-mer length",
+    depends = { Array[String]("-tag_reads", "-ten_x") })
+  var nMerLen = 7
+
+  @Args4jOption(required = false, name = "-barcode_whitelist", usage = "barcode whitelist",
+    depends = { Array[String]("-tag_reads", "-ten_x") })
+  var barcodeWhitelist = ""
+
+  @Args4jOption(required = false, name = "-collapse_dup_reads", usage = "collect reads with same sequences",
+    depends = { Array[String]("-tag_reads") })
+  var colDupReads = false
+
+  @Args4jOption(required = false, name = "-filter_lc_reads", usage = "filter low complexity reads",
+    depends = { Array[String]("-tag_reads") })
+  var filterLCReads = false
+
+  @Args4jOption(required = false, name = "-quality_encode", usage = "encode quality with depth",
+    depends = { Array[String]("-tag_reads") })
+  var encodeQuality = false
+
+  @Args4jOption(required = false, name = "-filter_lq_reads", usage = "filter out reads containing max_lq_base of base with quality < min_quality",
+    depends = { Array[String]("-tag_reads") })
+  var filterLQReads = false
+
+  @Args4jOption(required = false, name = "-min_quality", usage = "threshold for low quality base, defaulted as '?', representing Q30 for Illumina 1.8+ Phred+33",
+    depends = { Array[String]("-tag_reads", "-filter_lq_reads") })
+  var minQuality = 30
+
+  @Args4jOption(required = false, name = "-max_lq_base", usage = "max acceptable low quality base for -filter_lq_reads, defaulted as 10", depends = { Array[String]("-tag_reads", "-filter_lq_reads") })
+  var maxLQBase = 10
+
+  @Args4jOption(required = false, name = "-trim_head", usage = "trim head", depends = { Array[String]("-tag_reads") })
+  var trimHead = false
+
+  @Args4jOption(required = false, name = "-trim_tail", usage = "trim tail", depends = { Array[String]("-tag_reads") })
+  var trimTail = false
+
+  @Args4jOption(required = false, name = "-trim_both", usage = "trim both", depends = { Array[String]("-tag_reads") })
+  var trimBoth = false
+
+  @Args4jOption(required = false, name = "-min_length", usage = "read min length", depends = { Array[String]("-tag_reads") })
+  var minLen = 85
+
+  @Args4jOption(required = false, name = "-trim_adapter", usage = "trim adapter")
+  var trimAdapter = false
+
+  @Args4jOption(required = false, name = "-trim_one", usage = "trim one bp in head and tail")
+  var trimOne = false
+
+  @Args4jOption(required = false, name = "-trim_poly_g", usage = "trim poly G")
+  var trimPolyG = false
+
+  @Args4jOption(required = false, name = "-compare_req", usage = "trim poly G compare req", depends = { Array[String]("-trim_poly_g") })
+  var compareReq = 10
+
+  @Args4jOption(required = false, name = "-max_mismatch", usage = "trim poly G max mismatch", depends = { Array[String]("-trim_poly_g") })
+  var maxMismatch = 5
+
+  @Args4jOption(required = false, name = "-allow_one_mismatch_for_each", usage = "trim poly G allow one mismatch for each",
+    depends = { Array[String]("-trim_poly_g") })
+  var allowOneMismatchForEach = 8
+
+  @Args4jOption(required = false, name = "-lc_kmer", usage = "Low complexity kmer", depends = { Array[String]("-tag_reads", "-filter_lc_reads") })
+  var lcKmer = 3
+
+  @Args4jOption(required = false, name = "-lc_threshold_len_factor", usage = "Low complexity: threshold = length / lc_threshold_len_factor / lc_kmer",
+    depends = { Array[String]("-tag_reads", "-filter_lc_reads") })
+  var lcThresholdLenFactor = 2
 
   @Args4jOption(required = false, name = "-partition_by_start_pos", usage = "Save the data partitioned by genomic range bins based on start pos using Hive-style partitioning.")
   var partitionByStartPos: Boolean = false
@@ -636,7 +743,159 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
       mergedSd
     }
 
-    if (args.partitionByStartPos) {
+    if (args.tagReadName) {
+      val partitionSerialOffset = args.tagPartRange
+      if (outputDs.rdd.getNumPartitions > args.tagPartNum) {
+        throw new Exception("Paired-end input is limited with partition number " + args.tagPartNum)
+      }
+
+      val tenXBarcodeTrimmer = if (args.tenX) {
+        Some(new AtgxReadsBarcodeTrimmer(sc, args.barcodeLen, args.nMerLen, args.barcodeWhitelist))
+      } else {
+        None
+      }
+
+      val atgxDs = {
+        val taggedRdd = outputDs.rdd
+          .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
+
+        val barcodeTrimmedRdd =
+          if (args.tenX)
+            taggedRdd.mapPartitions(tenXBarcodeTrimmer.get.trim)
+          else
+            taggedRdd
+
+        // currently support Illumina 1.8+ Phred+33 scheme
+        val minQ = args.minQuality + 33
+        val maxLQ = args.maxLQBase
+        val qualRdd =
+          if (args.filterLQReads) {
+            AlignmentDataset(
+              barcodeTrimmedRdd.mapPartitions(new AtgxReadsQualFilter().filterReads(_, minQ, maxLQ, true)),
+              outputDs.references,
+              outputDs.readGroups,
+              outputDs.processingSteps)
+              .saveAsParquet(args.outputPath + "_LQfiltered",
+                128 * 1024 * 1024,
+                1 * 1024 * 1024,
+                CompressionCodecName.GZIP,
+                false)
+
+            barcodeTrimmedRdd.mapPartitions(new AtgxReadsQualFilter().filterReads(_, minQ, maxLQ, false))
+          } else
+            barcodeTrimmedRdd
+
+        val trimOneRdd =
+          if (args.trimOne)
+            qualRdd.mapPartitions(new AtgxReadsHeadTailTrimmer().trim)
+          else
+            qualRdd
+
+        val tenX = args.tenX
+        val minLen = args.minLen
+        val nucTrimmedRdd = if (args.trimHead) {
+          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimHead(_, tenX, minLen))
+        } else if (args.trimTail) {
+          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimTail(_, minLen))
+        } else if (args.trimBoth) {
+          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimBoth(_, tenX, minLen))
+        } else {
+          trimOneRdd
+        }
+
+        val maxN = args.maxNCount
+        val filteredRdd =
+          if (args.filterN) {
+            // generate and save N filtered AlignmentRecord entry
+            AlignmentDataset(
+              nucTrimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, true)),
+              outputDs.references,
+              outputDs.readGroups,
+              outputDs.processingSteps)
+              .saveAsParquet(args.outputPath + "_Nfiltered",
+                128 * 1024 * 1024,
+                1 * 1024 * 1024,
+                CompressionCodecName.GZIP,
+                false)
+
+            nucTrimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, false))
+          } else {
+            nucTrimmedRdd
+          }
+
+        val reassnRdd =
+          if (args.randAssignN)
+            filteredRdd.mapPartitions(new AtgxReadsRandNucAssigner().assign(_))
+          else
+            filteredRdd
+
+        val adapterTrimmedRdd =
+          if (args.trimAdapter)
+            reassnRdd.mapPartitions(new AtgxReadsAdapterTrimmer().trim(_))
+          else
+            reassnRdd
+
+        val polyGTrimmedRdd =
+          if (args.trimPolyG) {
+            val compareReq = args.compareReq
+            val maxMismatch = args.maxMismatch
+            val allowOneMismatchForEach = args.allowOneMismatchForEach
+            adapterTrimmedRdd.mapPartitions(new AtgxReadsPolyGTrimmer().trim(_, compareReq, maxMismatch, allowOneMismatchForEach))
+          } else {
+            adapterTrimmedRdd
+          }
+
+        val lenFilteredRdd = polyGTrimmedRdd.mapPartitions(new AtgxReadsLenFilter().filterLen(_, minLen))
+
+        val lcFilteredRdd =
+          if (args.filterLCReads) {
+            val lcKmer = args.lcKmer
+            val lcThresholdLenFactor = args.lcThresholdLenFactor
+            // generate and save LC filtered AlignmentRecord entry
+            AlignmentDataset(
+              lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true, lcKmer, lcThresholdLenFactor)),
+              outputDs.references,
+              outputDs.readGroups,
+              outputDs.processingSteps)
+              .saveAsParquet(args.outputPath + "_LCfiltered",
+                128 * 1024 * 1024,
+                1 * 1024 * 1024,
+                CompressionCodecName.GZIP,
+                false
+              )
+
+            lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false, lcKmer, lcThresholdLenFactor))
+          } else {
+            lenFilteredRdd
+          }
+
+        val retRdd =
+          if (args.colDupReads)
+            new AtgxReadsDupCollapse().collapse(lcFilteredRdd)
+          else
+            lcFilteredRdd
+
+        retRdd
+      }
+
+      AlignmentDataset(atgxDs, outputDs.references, outputDs.readGroups, outputDs.processingSteps)
+        .save(args, isSorted = args.sortByReadName || args.sortByReferencePosition || args.sortByReferencePositionAndIndex)
+      tenXBarcodeTrimmer.map(_.statistics())
+    } else if (args.atgxTransform) {
+      import AtgxTransformAlignments._
+      val disableSVDup = args.disableSVDup
+      val dict = mkPosBinIndices(sd)
+      val rdd = outputDs
+        .rdd
+        .mapPartitions(new AtgxTransformAlignments().transform(sd, _, disableSVDup))
+        .repartitionAndSortWithinPartitions(new NewPosBinPartitioner(dict))
+        .map(_._2)
+
+      AlignmentDataset(rdd, outputDs.references, outputDs.readGroups, outputDs.processingSteps)
+        .save(args, isSorted = args.sortByReadName || args.sortByReferencePosition || args.sortByReferencePositionAndIndex)
+
+      renameWithXPrefix(args.outputPath, dict)
+    } else if (args.partitionByStartPos) {
       if (outputDs.references.isEmpty) {
         warn("This dataset is not aligned and therefore will not benefit from being saved as a partitioned dataset")
       }
