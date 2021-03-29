@@ -593,123 +593,124 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
   }
 
   def run(sc: SparkContext) {
-    checkWriteablePath(args.outputPath, sc.hadoopConfiguration)
+    try {
+      checkWriteablePath(args.outputPath, sc.hadoopConfiguration)
 
-    // throw exception if aligned read predicate or limit projection flags are used improperly
-    if (args.useAlignedReadPredicate && forceNonParquet()) {
-      throw new IllegalArgumentException(
-        "-aligned_read_predicate only applies to Parquet files, but a non-Parquet force load flag was passed"
-      )
-    }
-    if (args.limitProjection && forceNonParquet()) {
-      throw new IllegalArgumentException(
-        "-limit_projection only applies to Parquet files, but a non-Parquet force load flag was passed"
-      )
-    }
-    if (args.useAlignedReadPredicate && isNonParquet(args.inputPath)) {
-      throw new IllegalArgumentException(
-        "-aligned_read_predicate only applies to Parquet files, but a non-Parquet input path was specified"
-      )
-    }
-    if (args.limitProjection && isNonParquet(args.inputPath)) {
-      throw new IllegalArgumentException(
-        "-limit_projection only applies to Parquet files, but a non-Parquet input path was specified"
-      )
-    }
-    if (args.useAlignedReadPredicate && args.regionPredicate != null) {
-      throw new IllegalArgumentException(
-        "-aligned_read_predicate and -region_predicate are mutually exclusive"
-      )
-    }
-    if (Seq(args.sortByReadName, args.sortByReferencePosition, args.sortByReferencePositionAndIndex).count(b => b) > 1) {
-      throw new IllegalArgumentException(
-        "only one of -sort_by_name, -sort_by_reference_position, and -sort_by_reference_position_and_index may be specified"
-      )
-    }
-
-    args.configureCramFormat(sc)
-
-    val loadedDs: AlignmentDataset =
-      if (args.forceLoadBam) {
-        if (args.regionPredicate != null) {
-          val loci = ReferenceRegion.fromString(args.regionPredicate)
-          sc.loadIndexedBam(args.inputPath, loci)
-        } else {
-          sc.loadBam(args.inputPath)
-        }
-      } else if (args.forceLoadFastq) {
-        sc.loadFastq(args.inputPath, Option(args.pairedFastqFile), Option(args.fastqReadGroup), stringency)
-      } else if (args.forceLoadIFastq) {
-        sc.loadInterleavedFastq(args.inputPath)
-      } else if (args.forceLoadParquet ||
-        args.useAlignedReadPredicate ||
-        args.limitProjection) {
-        val pred = if (args.useAlignedReadPredicate) {
-          Some(FilterApi.eq[JBoolean, BooleanColumn](
-            FilterApi.booleanColumn("readMapped"), true))
-        } else if (args.regionPredicate != null) {
-          Some(ReferenceRegion.createPredicate(
-            ReferenceRegion.fromString(args.regionPredicate).toSeq: _*
-          ))
-        } else {
-          None
-        }
-
-        val proj = if (args.limitProjection) {
-          Some(Filter(AlignmentField.attributes,
-            AlignmentField.originalQualityScores))
-        } else {
-          None
-        }
-
-        sc.loadParquetAlignments(args.inputPath,
-          optPredicate = pred,
-          optProjection = proj)
-      } else {
-        val loadedReads = sc.loadAlignments(
-          args.inputPath,
-          optPathName2 = Option(args.pairedFastqFile),
-          optReadGroup = Option(args.fastqReadGroup),
-          stringency = stringency
+      // throw exception if aligned read predicate or limit projection flags are used improperly
+      if (args.useAlignedReadPredicate && forceNonParquet()) {
+        throw new IllegalArgumentException(
+          "-aligned_read_predicate only applies to Parquet files, but a non-Parquet force load flag was passed"
         )
+      }
+      if (args.limitProjection && forceNonParquet()) {
+        throw new IllegalArgumentException(
+          "-limit_projection only applies to Parquet files, but a non-Parquet force load flag was passed"
+        )
+      }
+      if (args.useAlignedReadPredicate && isNonParquet(args.inputPath)) {
+        throw new IllegalArgumentException(
+          "-aligned_read_predicate only applies to Parquet files, but a non-Parquet input path was specified"
+        )
+      }
+      if (args.limitProjection && isNonParquet(args.inputPath)) {
+        throw new IllegalArgumentException(
+          "-limit_projection only applies to Parquet files, but a non-Parquet input path was specified"
+        )
+      }
+      if (args.useAlignedReadPredicate && args.regionPredicate != null) {
+        throw new IllegalArgumentException(
+          "-aligned_read_predicate and -region_predicate are mutually exclusive"
+        )
+      }
+      if (Seq(args.sortByReadName, args.sortByReferencePosition, args.sortByReferencePositionAndIndex).count(b => b) > 1) {
+        throw new IllegalArgumentException(
+          "only one of -sort_by_name, -sort_by_reference_position, and -sort_by_reference_position_and_index may be specified"
+        )
+      }
 
-        if (args.regionPredicate != null) {
-          val loci = ReferenceRegion.fromString(args.regionPredicate)
-          loadedReads.filterByOverlappingRegions(loci)
+      args.configureCramFormat(sc)
+
+      val loadedDs: AlignmentDataset =
+        if (args.forceLoadBam) {
+          if (args.regionPredicate != null) {
+            val loci = ReferenceRegion.fromString(args.regionPredicate)
+            sc.loadIndexedBam(args.inputPath, loci)
+          } else {
+            sc.loadBam(args.inputPath)
+          }
+        } else if (args.forceLoadFastq) {
+          sc.loadFastq(args.inputPath, Option(args.pairedFastqFile), Option(args.fastqReadGroup), stringency)
+        } else if (args.forceLoadIFastq) {
+          sc.loadInterleavedFastq(args.inputPath)
+        } else if (args.forceLoadParquet ||
+          args.useAlignedReadPredicate ||
+          args.limitProjection) {
+          val pred = if (args.useAlignedReadPredicate) {
+            Some(FilterApi.eq[JBoolean, BooleanColumn](
+              FilterApi.booleanColumn("readMapped"), true))
+          } else if (args.regionPredicate != null) {
+            Some(ReferenceRegion.createPredicate(
+              ReferenceRegion.fromString(args.regionPredicate).toSeq: _*
+            ))
+          } else {
+            None
+          }
+
+          val proj = if (args.limitProjection) {
+            Some(Filter(AlignmentField.attributes,
+              AlignmentField.originalQualityScores))
+          } else {
+            None
+          }
+
+          sc.loadParquetAlignments(args.inputPath,
+            optPredicate = pred,
+            optProjection = proj)
         } else {
-          loadedReads
+          val loadedReads = sc.loadAlignments(
+            args.inputPath,
+            optPathName2 = Option(args.pairedFastqFile),
+            optReadGroup = Option(args.fastqReadGroup),
+            stringency = stringency
+          )
+
+          if (args.regionPredicate != null) {
+            val loci = ReferenceRegion.fromString(args.regionPredicate)
+            loadedReads.filterByOverlappingRegions(loci)
+          } else {
+            loadedReads
+          }
         }
-      }
 
-    val aDs: AlignmentDataset = if (args.disableProcessingStep) {
-      loadedDs
-    } else {
-      // add program info
-      val about = new About()
-      val version = if (about.isSnapshot()) {
-        "%s--%s".format(about.version(), about.commit())
+      val aDs: AlignmentDataset = if (args.disableProcessingStep) {
+        loadedDs
       } else {
-        about.version()
+        // add program info
+        val about = new About()
+        val version = if (about.isSnapshot()) {
+          "%s--%s".format(about.version(), about.commit())
+        } else {
+          about.version()
+        }
+        val epoch = Instant.now.getEpochSecond
+        val processingStep = ProcessingStep.newBuilder
+          .setId("ADAM_%d".format(epoch))
+          .setProgramName("org.bdgenomics.adam.cli.TransformAlignments")
+          .setVersion(version)
+          .setCommandLine(args.command)
+          .build
+        loadedDs.addProcessingStep(processingStep)
       }
-      val epoch = Instant.now.getEpochSecond
-      val processingStep = ProcessingStep.newBuilder
-        .setId("ADAM_%d".format(epoch))
-        .setProgramName("org.bdgenomics.adam.cli.TransformAlignments")
-        .setVersion(version)
-        .setCommandLine(args.command)
-        .build
-      loadedDs.addProcessingStep(processingStep)
-    }
 
-    val rdd = aDs.rdd
-    val sd = aDs.references
-    val rgd = aDs.readGroups
-    val pgs = aDs.processingSteps
+      val rdd = aDs.rdd
+      val sd = aDs.references
+      val rgd = aDs.readGroups
+      val pgs = aDs.processingSteps
 
-    // Optionally load a second RDD and concatenate it with the first.
-    // Paired-FASTQ loading is avoided here because that wouldn't make sense
-    // given that it's already happening above.
-    val concatOpt =
+      // Optionally load a second RDD and concatenate it with the first.
+      // Paired-FASTQ loading is avoided here because that wouldn't make sense
+      // given that it's already happening above.
+      val concatOpt =
       Option(args.concatFilename).map(concatFilename =>
         if (args.forceLoadBam) {
           sc.loadBam(concatFilename)
@@ -724,185 +725,190 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           )
         })
 
-    // if we have a second rdd that we are merging in, process the merger here
-    val (mergedRdd, mergedSd, mergedRgd, mergedPgs) = concatOpt.fold((rdd, sd, rgd, pgs))(t => {
-      (rdd ++ t.rdd, sd ++ t.references, rgd ++ t.readGroups, pgs ++ t.processingSteps)
-    })
+      // if we have a second rdd that we are merging in, process the merger here
+      val (mergedRdd, mergedSd, mergedRgd, mergedPgs) = concatOpt.fold((rdd, sd, rgd, pgs))(t => {
+        (rdd ++ t.rdd, sd ++ t.references, rgd ++ t.readGroups, pgs ++ t.processingSteps)
+      })
 
-    // make a new aligned read rdd, that merges the two RDDs together
-    val newDs = AlignmentDataset(mergedRdd, mergedSd, mergedRgd, mergedPgs)
+      // make a new aligned read rdd, that merges the two RDDs together
+      val newDs = AlignmentDataset(mergedRdd, mergedSd, mergedRgd, mergedPgs)
 
-    // run our transformation
-    val outputDs = this.apply(newDs)
+      // run our transformation
+      val outputDs = this.apply(newDs)
 
-    // if we are sorting by reference, we must strip the indices from the sequence dictionary
-    // and sort the sequence dictionary
-    val sdFinal = if (args.sortByReferencePosition) {
-      mergedSd.stripIndices.sorted
-    } else {
-      mergedSd
-    }
-
-    if (args.tagReadName) {
-      val partitionSerialOffset = args.tagPartRange
-      if (outputDs.rdd.getNumPartitions > args.tagPartNum) {
-        throw new Exception("Paired-end input is limited with partition number " + args.tagPartNum)
-      }
-
-      val tenXBarcodeTrimmer = if (args.tenX) {
-        Some(new AtgxReadsBarcodeTrimmer(sc, args.barcodeLen, args.nMerLen, args.barcodeWhitelist))
+      // if we are sorting by reference, we must strip the indices from the sequence dictionary
+      // and sort the sequence dictionary
+      val sdFinal = if (args.sortByReferencePosition) {
+        mergedSd.stripIndices.sorted
       } else {
-        None
+        mergedSd
       }
 
-      val atgxDs = {
-        val taggedRdd = outputDs.rdd
-          .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
-
-        val barcodeTrimmedRdd =
-          if (args.tenX)
-            taggedRdd.mapPartitions(tenXBarcodeTrimmer.get.trim)
-          else
-            taggedRdd
-
-        // currently support Illumina 1.8+ Phred+33 scheme
-        val minQ = args.minQuality + 33
-        val maxLQ = args.maxLQBase
-        val qualRdd =
-          if (args.filterLQReads) {
-            AlignmentDataset(
-              barcodeTrimmedRdd.mapPartitions(new AtgxReadsQualFilter().filterReads(_, minQ, maxLQ, true)),
-              outputDs.references,
-              outputDs.readGroups,
-              outputDs.processingSteps)
-              .saveAsParquet(args.outputPath + "_LQfiltered",
-                128 * 1024 * 1024,
-                1 * 1024 * 1024,
-                CompressionCodecName.GZIP,
-                false)
-
-            barcodeTrimmedRdd.mapPartitions(new AtgxReadsQualFilter().filterReads(_, minQ, maxLQ, false))
-          } else
-            barcodeTrimmedRdd
-
-        val trimOneRdd =
-          if (args.trimOne)
-            qualRdd.mapPartitions(new AtgxReadsHeadTailTrimmer().trim)
-          else
-            qualRdd
-
-        val tenX = args.tenX
-        val minLen = args.minLen
-        val nucTrimmedRdd = if (args.trimHead) {
-          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimHead(_, tenX, minLen))
-        } else if (args.trimTail) {
-          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimTail(_, minLen))
-        } else if (args.trimBoth) {
-          trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimBoth(_, tenX, minLen))
-        } else {
-          trimOneRdd
+      if (args.tagReadName) {
+        val partitionSerialOffset = args.tagPartRange
+        if (outputDs.rdd.getNumPartitions > args.tagPartNum) {
+          throw new Exception("Paired-end input is limited with partition number " + args.tagPartNum)
         }
 
-        val maxN = args.maxNCount
-        val filteredRdd =
-          if (args.filterN) {
-            // generate and save N filtered AlignmentRecord entry
-            AlignmentDataset(
-              nucTrimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, true)),
-              outputDs.references,
-              outputDs.readGroups,
-              outputDs.processingSteps)
-              .saveAsParquet(args.outputPath + "_Nfiltered",
-                128 * 1024 * 1024,
-                1 * 1024 * 1024,
-                CompressionCodecName.GZIP,
-                false)
+        val tenXBarcodeTrimmer = if (args.tenX) {
+          Some(new AtgxReadsBarcodeTrimmer(sc, args.barcodeLen, args.nMerLen, args.barcodeWhitelist))
+        } else {
+          None
+        }
 
-            nucTrimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, false))
+        val atgxDs = {
+          val taggedRdd = outputDs.rdd
+            .mapPartitions(new AtgxReadsIDTagger().tag(_, partitionSerialOffset))
+
+          val barcodeTrimmedRdd =
+            if (args.tenX)
+              taggedRdd.mapPartitions(tenXBarcodeTrimmer.get.trim)
+            else
+              taggedRdd
+
+          // currently support Illumina 1.8+ Phred+33 scheme
+          val minQ = args.minQuality + 33
+          val maxLQ = args.maxLQBase
+          val qualRdd =
+            if (args.filterLQReads) {
+              AlignmentDataset(
+                barcodeTrimmedRdd.mapPartitions(new AtgxReadsQualFilter().filterReads(_, minQ, maxLQ, true)),
+                outputDs.references,
+                outputDs.readGroups,
+                outputDs.processingSteps)
+                .saveAsParquet(args.outputPath + "_LQfiltered",
+                  128 * 1024 * 1024,
+                  1 * 1024 * 1024,
+                  CompressionCodecName.GZIP,
+                  false)
+
+              barcodeTrimmedRdd.mapPartitions(new AtgxReadsQualFilter().filterReads(_, minQ, maxLQ, false))
+            } else
+              barcodeTrimmedRdd
+
+          val trimOneRdd =
+            if (args.trimOne)
+              qualRdd.mapPartitions(new AtgxReadsHeadTailTrimmer().trim)
+            else
+              qualRdd
+
+          val tenX = args.tenX
+          val minLen = args.minLen
+          val nucTrimmedRdd = if (args.trimHead) {
+            trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimHead(_, tenX, minLen))
+          } else if (args.trimTail) {
+            trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimTail(_, minLen))
+          } else if (args.trimBoth) {
+            trimOneRdd.mapPartitions(new AtgxReadsNucTrimmer().trimBoth(_, tenX, minLen))
           } else {
-            nucTrimmedRdd
+            trimOneRdd
           }
 
-        val reassnRdd =
-          if (args.randAssignN)
-            filteredRdd.mapPartitions(new AtgxReadsRandNucAssigner().assign(_))
-          else
-            filteredRdd
+          val maxN = args.maxNCount
+          val filteredRdd =
+            if (args.filterN) {
+              // generate and save N filtered AlignmentRecord entry
+              AlignmentDataset(
+                nucTrimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, true)),
+                outputDs.references,
+                outputDs.readGroups,
+                outputDs.processingSteps)
+                .saveAsParquet(args.outputPath + "_Nfiltered",
+                  128 * 1024 * 1024,
+                  1 * 1024 * 1024,
+                  CompressionCodecName.GZIP,
+                  false)
 
-        val adapterTrimmedRdd =
-          if (args.trimAdapter)
-            reassnRdd.mapPartitions(new AtgxReadsAdapterTrimmer().trim(_))
-          else
-            reassnRdd
+              nucTrimmedRdd.mapPartitions(new AtgxReadsMultipleNFilter().filterN(_, maxN, false))
+            } else {
+              nucTrimmedRdd
+            }
 
-        val polyGTrimmedRdd =
-          if (args.trimPolyG) {
-            val compareReq = args.compareReq
-            val maxMismatch = args.maxMismatch
-            val allowOneMismatchForEach = args.allowOneMismatchForEach
-            adapterTrimmedRdd.mapPartitions(new AtgxReadsPolyGTrimmer().trim(_, compareReq, maxMismatch, allowOneMismatchForEach))
-          } else {
-            adapterTrimmedRdd
-          }
+          val reassnRdd =
+            if (args.randAssignN)
+              filteredRdd.mapPartitions(new AtgxReadsRandNucAssigner().assign(_))
+            else
+              filteredRdd
 
-        val lenFilteredRdd = polyGTrimmedRdd.mapPartitions(new AtgxReadsLenFilter().filterLen(_, minLen))
+          val adapterTrimmedRdd =
+            if (args.trimAdapter)
+              reassnRdd.mapPartitions(new AtgxReadsAdapterTrimmer().trim(_))
+            else
+              reassnRdd
 
-        val lcFilteredRdd =
-          if (args.filterLCReads) {
-            val lcKmer = args.lcKmer
-            val lcThresholdLenFactor = args.lcThresholdLenFactor
-            // generate and save LC filtered AlignmentRecord entry
-            AlignmentDataset(
-              lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true, lcKmer, lcThresholdLenFactor)),
-              outputDs.references,
-              outputDs.readGroups,
-              outputDs.processingSteps)
-              .saveAsParquet(args.outputPath + "_LCfiltered",
-                128 * 1024 * 1024,
-                1 * 1024 * 1024,
-                CompressionCodecName.GZIP,
-                false
-              )
+          val polyGTrimmedRdd =
+            if (args.trimPolyG) {
+              val compareReq = args.compareReq
+              val maxMismatch = args.maxMismatch
+              val allowOneMismatchForEach = args.allowOneMismatchForEach
+              adapterTrimmedRdd.mapPartitions(new AtgxReadsPolyGTrimmer().trim(_, compareReq, maxMismatch, allowOneMismatchForEach))
+            } else {
+              adapterTrimmedRdd
+            }
 
-            lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false, lcKmer, lcThresholdLenFactor))
-          } else {
-            lenFilteredRdd
-          }
+          val lenFilteredRdd = polyGTrimmedRdd.mapPartitions(new AtgxReadsLenFilter().filterLen(_, minLen))
 
-        val retRdd =
-          if (args.colDupReads)
-            new AtgxReadsDupCollapse().collapse(lcFilteredRdd)
-          else
-            lcFilteredRdd
+          val lcFilteredRdd =
+            if (args.filterLCReads) {
+              val lcKmer = args.lcKmer
+              val lcThresholdLenFactor = args.lcThresholdLenFactor
+              // generate and save LC filtered AlignmentRecord entry
+              AlignmentDataset(
+                lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, true, lcKmer, lcThresholdLenFactor)),
+                outputDs.references,
+                outputDs.readGroups,
+                outputDs.processingSteps)
+                .saveAsParquet(args.outputPath + "_LCfiltered",
+                  128 * 1024 * 1024,
+                  1 * 1024 * 1024,
+                  CompressionCodecName.GZIP,
+                  false
+                )
 
-        retRdd
+              lenFilteredRdd.mapPartitions(new AtgxReadsLCFilter().filterReads(_, false, lcKmer, lcThresholdLenFactor))
+            } else {
+              lenFilteredRdd
+            }
+
+          val retRdd =
+            if (args.colDupReads)
+              new AtgxReadsDupCollapse().collapse(lcFilteredRdd)
+            else
+              lcFilteredRdd
+
+          retRdd
+        }
+
+        AlignmentDataset(atgxDs, outputDs.references, outputDs.readGroups, outputDs.processingSteps)
+          .save(args, isSorted = args.sortByReadName || args.sortByReferencePosition || args.sortByReferencePositionAndIndex)
+        tenXBarcodeTrimmer.map(_.statistics())
+      } else if (args.atgxTransform) {
+        import AtgxTransformAlignments._
+        val disableSVDup = args.disableSVDup
+        val dict = mkPosBinIndices(sd)
+        val rdd = outputDs
+          .rdd
+          .mapPartitions(new AtgxTransformAlignments().transform(sd, _, disableSVDup))
+          .repartitionAndSortWithinPartitions(new NewPosBinPartitioner(dict))
+          .map(_._2)
+
+        AlignmentDataset(rdd, outputDs.references, outputDs.readGroups, outputDs.processingSteps)
+          .save(args, isSorted = args.sortByReadName || args.sortByReferencePosition || args.sortByReferencePositionAndIndex)
+
+        renameWithXPrefix(args.outputPath, dict)
+      } else if (args.partitionByStartPos) {
+        if (outputDs.references.isEmpty) {
+          warn("This dataset is not aligned and therefore will not benefit from being saved as a partitioned dataset")
+        }
+        outputDs.saveAsPartitionedParquet(args.outputPath, partitionSize = args.partitionedBinSize)
+      } else {
+        outputDs.save(args,
+          isSorted = args.sortByReadName || args.sortByReferencePosition || args.sortByReferencePositionAndIndex)
       }
-
-      AlignmentDataset(atgxDs, outputDs.references, outputDs.readGroups, outputDs.processingSteps)
-        .save(args, isSorted = args.sortByReadName || args.sortByReferencePosition || args.sortByReferencePositionAndIndex)
-      tenXBarcodeTrimmer.map(_.statistics())
-    } else if (args.atgxTransform) {
-      import AtgxTransformAlignments._
-      val disableSVDup = args.disableSVDup
-      val dict = mkPosBinIndices(sd)
-      val rdd = outputDs
-        .rdd
-        .mapPartitions(new AtgxTransformAlignments().transform(sd, _, disableSVDup))
-        .repartitionAndSortWithinPartitions(new NewPosBinPartitioner(dict))
-        .map(_._2)
-
-      AlignmentDataset(rdd, outputDs.references, outputDs.readGroups, outputDs.processingSteps)
-        .save(args, isSorted = args.sortByReadName || args.sortByReferencePosition || args.sortByReferencePositionAndIndex)
-
-      renameWithXPrefix(args.outputPath, dict)
-    } else if (args.partitionByStartPos) {
-      if (outputDs.references.isEmpty) {
-        warn("This dataset is not aligned and therefore will not benefit from being saved as a partitioned dataset")
-      }
-      outputDs.saveAsPartitionedParquet(args.outputPath, partitionSize = args.partitionedBinSize)
-    } else {
-      outputDs.save(args,
-        isSorted = args.sortByReadName || args.sortByReferencePosition || args.sortByReferencePositionAndIndex)
+    } catch {
+      case e: Exception => e.printStackTrace()
+    } finally {
+      sc.stop
     }
   }
 
