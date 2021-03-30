@@ -21,7 +21,7 @@ import java.util.logging.Level._
 import javax.inject.Inject
 import com.google.inject.AbstractModule
 import net.codingwell.scalaguice.ScalaModule
-import org.bdgenomics.utils.misc.Logging
+import grizzled.slf4j.Logging
 import org.bdgenomics.adam.util.ParquetLogger
 import org.bdgenomics.utils.cli._
 
@@ -33,20 +33,20 @@ object ADAMMain {
         "ADAM ACTIONS",
         List(
           CountReadKmers,
-          CountContigKmers,
+          CountSliceKmers,
           TransformAlignments,
           TransformFeatures,
           TransformGenotypes,
+          TransformSequences,
+          TransformSlices,
           TransformVariants,
           MergeShards,
-          Reads2Coverage
+          Coverage
         )
       ),
       CommandGroup(
         "CONVERSION OPERATIONS",
         List(
-          Fasta2ADAM,
-          ADAM2Fasta,
           ADAM2Fastq,
           TransformFragments
         )
@@ -91,6 +91,7 @@ class ADAMMain @Inject() (commandGroups: List[CommandGroup]) extends Logging {
     }
     println("Built for: Apache Spark %s, Scala %s, and Hadoop %s"
       .format(about.sparkVersion, about.scalaVersion, about.hadoopVersion))
+    println("Cite: doi:10.1145/2723372.2742787")
   }
 
   private def printCommands() {
@@ -106,7 +107,7 @@ class ADAMMain @Inject() (commandGroups: List[CommandGroup]) extends Logging {
   }
 
   def apply(args: Array[String]) {
-    log.info("ADAM invoked with args: %s".format(argsToString(args)))
+    info("ADAM invoked with args: %s".format(argsToString(args)))
     if (args.length < 1) {
       printCommands()
     } else if (args.contains("--version") || args.contains("-version")) {

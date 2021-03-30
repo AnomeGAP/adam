@@ -1,9 +1,9 @@
 package org.bdgenomics.adam.cli
 
-import org.bdgenomics.formats.avro.AlignmentRecord
+import org.bdgenomics.formats.avro.Alignment
 
 class AtgxReadsMultipleNFilter {
-  def filterN(iter: Iterator[AlignmentRecord], maxN: Int, invFlag: Boolean): Iterator[AlignmentRecord] = {
+  def filterN(iter: Iterator[Alignment], maxN: Int, invFlag: Boolean): Iterator[Alignment] = {
     iter.filter { record =>
       // TODO: use tailrec
       val nCount = record.getSequence.filter(_ == 'N').length

@@ -17,6 +17,7 @@
  */
 package org.bdgenomics.adam.converters
 
+import grizzled.slf4j.Logging
 import htsjdk.samtools.ValidationStringency
 import htsjdk.variant.vcf.VCFConstants
 import htsjdk.variant.variantcontext.VariantContext
@@ -26,7 +27,6 @@ import org.bdgenomics.formats.avro.{
   Variant,
   VariantAnnotationMessage
 }
-import org.bdgenomics.utils.misc.Logging
 import scala.collection.JavaConverters._
 
 /**
@@ -84,6 +84,18 @@ private[adam] object TranscriptEffectConverter extends Serializable with Logging
   }
 
   /**
+   * Ensembl VEP incorrectly supplies an interval instead of a position
+   * for some attributes; in these cases use the interval start as the position.
+   *
+   * @param s position or interval
+   * @return position or interval start
+   */
+  private def positionOrIntervalStart(s: String): Int = {
+    val tokens = s.split("-")
+    Integer.parseInt(tokens(0))
+  }
+
+  /**
    * Split a single or fractional value into optional numerator and denominator values.
    *
    * @param s single or fractional value to split
@@ -96,8 +108,8 @@ private[adam] object TranscriptEffectConverter extends Serializable with Logging
     val tokens = s.split("/")
     tokens.length match {
       case 0 => (None, None)
-      case 1 => (Some(Integer.parseInt(tokens(0))), None)
-      case _ => (Some(Integer.parseInt(tokens(0))), Some(Integer.parseInt(tokens(1))))
+      case 1 => (Some(positionOrIntervalStart(tokens(0))), None)
+      case _ => (Some(positionOrIntervalStart(tokens(0))), Some(Integer.parseInt(tokens(1))))
     }
   }
 
@@ -220,7 +232,7 @@ private[adam] object TranscriptEffectConverter extends Serializable with Logging
         if (stringency == ValidationStringency.STRICT) {
           throw t
         } else if (stringency == ValidationStringency.LENIENT) {
-          log.warn("Could not convert VCF INFO reserved key ANN value to TranscriptEffect, caught %s.".format(t))
+          warn("Could not convert VCF INFO reserved key ANN value to TranscriptEffect, caught %s.".format(t))
         }
         None
       }
@@ -248,7 +260,7 @@ private[adam] object TranscriptEffectConverter extends Serializable with Logging
           "%d".format(n)
         }
         case (None, Some(d)) => {
-          log.warn("Incorrect fractional value ?/%d, missing numerator".format(d))
+          warn("Incorrect fractional value ?/%d, missing numerator".format(d))
           ""
         }
         case (Some(n), Some(d)) => {

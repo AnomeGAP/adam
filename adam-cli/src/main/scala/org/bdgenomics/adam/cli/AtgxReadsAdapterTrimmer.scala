@@ -1,14 +1,14 @@
 package org.bdgenomics.adam.cli
 
-import org.bdgenomics.formats.avro.AlignmentRecord
+import org.bdgenomics.formats.avro.Alignment
 import org.bdgenomics.adam.cli.Utils.reverseComplementary
 
 import scala.annotation.tailrec
 import scala.collection.mutable.HashMap
 
 class AtgxReadsAdapterTrimmer {
-  def trim(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
-    val unpairedReads = new HashMap[Long, AlignmentRecord]()
+  def trim(iter: Iterator[Alignment]): Iterator[Alignment] = {
+    val unpairedReads = new HashMap[Long, Alignment]()
     iter.flatMap { record =>
       val name = record.getReadName
       val (_, iw) = AtgxReadsInfoParser.parseFromName(name)
@@ -53,7 +53,7 @@ class AtgxReadsAdapterTrimmer {
         }
         .getOrElse {
           unpairedReads.put(readId, record)
-          List[AlignmentRecord]()
+          List[Alignment]()
         }
     } ++ unpairedReads.values
   }
@@ -139,11 +139,11 @@ class AtgxReadsAdapterTrimmer {
       false
   }
 
-  private def trimAdapter(record: AlignmentRecord, len: Int): AlignmentRecord = {
+  private def trimAdapter(record: Alignment, len: Int): Alignment = {
     val newSeq = new String(record.getSequence.substring(0, len))
-    val newQuality = new String(record.getQuality.substring(0, len))
+    val newQuality = new String(record.getQualityScores.substring(0, len))
     record.setSequence(newSeq)
-    record.setQuality(newQuality)
+    record.setQualityScores(newQuality)
 
     record
   }

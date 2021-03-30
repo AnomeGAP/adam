@@ -19,13 +19,14 @@ package org.bdgenomics.adam.cli
 
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.bdgenomics.adam.rdd.ADAMContext._
-import org.bdgenomics.adam.rdd.ADAMSaveAnyArgs
-import org.bdgenomics.formats.avro.AlignmentRecord
+import org.bdgenomics.adam.cli.FileSystemUtils._
+import org.bdgenomics.adam.ds.ADAMContext._
+import org.bdgenomics.adam.ds.ADAMSaveAnyArgs
+import org.bdgenomics.formats.avro.Alignment
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
 
-class ViewArgs extends Args4jBase with ParquetArgs with ADAMSaveAnyArgs {
+class ViewArgs extends Args4jBase with ParquetArgs with ADAMSaveAnyArgs with CramArgs {
   @Argument(required = true, metaVar = "INPUT", usage = "The ADAM, BAM or SAM file to view", index = 0)
   var inputPath: String = null
 
@@ -115,7 +116,7 @@ object View extends BDGCommandCompanion {
 class View(val args: ViewArgs) extends BDGSparkCommand[ViewArgs] {
   val companion = View
 
-  type ReadFilter = (AlignmentRecord => Boolean)
+  type ReadFilter = (Alignment => Boolean)
 
   def getFilters(n: Int, matchValue: Boolean = true): List[ReadFilter] = {
     def getFilter(bit: Int, fn: ReadFilter): Option[ReadFilter] =
@@ -148,7 +149,7 @@ class View(val args: ViewArgs) extends BDGSparkCommand[ViewArgs] {
     ).flatten
   }
 
-  def applyFilters(reads: RDD[AlignmentRecord]): RDD[AlignmentRecord] = {
+  def applyFilters(reads: RDD[Alignment]): RDD[Alignment] = {
     val matchAllFilters: List[ReadFilter] = getFilters(args.matchAllBits, matchValue = true)
     val mismatchAllFilters: List[ReadFilter] = getFilters(args.mismatchAllBits, matchValue = false)
     val allFilters = matchAllFilters ++ mismatchAllFilters
@@ -167,9 +168,12 @@ class View(val args: ViewArgs) extends BDGSparkCommand[ViewArgs] {
   }
 
   def run(sc: SparkContext) = {
+    checkWriteablePath(args.outputPath, sc.hadoopConfiguration)
+
+    args.configureCramFormat(sc)
 
     val reads = sc.loadAlignments(args.inputPath)
-      .transform(applyFilters(_))
+      .transform((rdd: RDD[Alignment]) => applyFilters(rdd))
 
     if (args.outputPath != null) {
       reads.save(args)

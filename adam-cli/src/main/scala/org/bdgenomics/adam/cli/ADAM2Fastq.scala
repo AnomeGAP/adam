@@ -19,13 +19,16 @@ package org.bdgenomics.adam.cli
 
 import htsjdk.samtools.ValidationStringency
 import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
-import org.bdgenomics.adam.projections.{ AlignmentRecordField, Projection }
-import org.bdgenomics.adam.rdd.ADAMContext._
+import org.bdgenomics.adam.cli.FileSystemUtils._
+import org.bdgenomics.adam.projections.{ AlignmentField, Projection }
+import org.bdgenomics.adam.ds.ADAMContext._
+import org.bdgenomics.formats.avro.Alignment
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
 
-class ADAM2FastqArgs extends Args4jBase {
+class ADAM2FastqArgs extends Args4jBase with CramArgs {
   @Argument(required = true, metaVar = "INPUT", usage = "The read file to convert", index = 0)
   var inputPath: String = null
   @Argument(required = true, metaVar = "OUTPUT", usage = "Location to write the FASTQ to", index = 1)
@@ -44,8 +47,8 @@ class ADAM2FastqArgs extends Args4jBase {
   var persistLevel: String = null
   @Args4jOption(required = false, name = "-no_projection", usage = "Disable projection on records. No great reason to do this, but useful for testing / comparison.")
   var disableProjection: Boolean = false
-  @Args4jOption(required = false, name = "-output_oq", usage = "Output the original sequencing quality scores")
-  var outputOriginalBaseQualities = false
+  @Args4jOption(required = false, name = "-output_oq", usage = "Write the original sequencing quality scores")
+  var writeOriginalQualityScores = false
 }
 
 object ADAM2Fastq extends BDGCommandCompanion {
@@ -60,26 +63,29 @@ class ADAM2Fastq(val args: ADAM2FastqArgs) extends BDGSparkCommand[ADAM2FastqArg
   override val companion = ADAM2Fastq
 
   override def run(sc: SparkContext): Unit = {
+    checkWriteablePath(args.outputPath, sc.hadoopConfiguration)
 
     val projectionOpt =
       if (!args.disableProjection)
         Some(
           Projection(
-            AlignmentRecordField.readName,
-            AlignmentRecordField.sequence,
-            AlignmentRecordField.quality,
-            AlignmentRecordField.readInFragment,
-            AlignmentRecordField.originalQuality
+            AlignmentField.readName,
+            AlignmentField.sequence,
+            AlignmentField.qualityScores,
+            AlignmentField.readInFragment,
+            AlignmentField.originalQualityScores
           )
         )
       else
         None
 
+    args.configureCramFormat(sc)
+
     var reads = sc.loadAlignments(args.inputPath, optProjection = projectionOpt)
 
     if (args.repartition != -1) {
-      log.info("Repartitioning reads to to '%d' partitions".format(args.repartition))
-      reads = reads.transform(_.repartition(args.repartition))
+      info("Repartitioning reads to to '%d' partitions".format(args.repartition))
+      reads = reads.transform((rdd: RDD[Alignment]) => rdd.repartition(args.repartition))
     }
 
     reads.saveAsFastq(
@@ -87,7 +93,7 @@ class ADAM2Fastq(val args: ADAM2FastqArgs) extends BDGSparkCommand[ADAM2FastqArg
       Option(args.outputPath2),
       asSingleFile = args.asSingleFile,
       disableFastConcat = args.disableFastConcat,
-      outputOriginalBaseQualities = args.outputOriginalBaseQualities,
+      writeOriginalQualityScores = args.writeOriginalQualityScores,
       validationStringency = args.validationStringency,
       persistLevel = Option(args.persistLevel).map(StorageLevel.fromString(_))
     )

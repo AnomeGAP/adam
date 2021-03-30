@@ -19,9 +19,14 @@ package org.bdgenomics.adam.cli
 
 import htsjdk.samtools.ValidationStringency
 import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
+import org.bdgenomics.adam.cli.FileSystemUtils._
 import org.bdgenomics.adam.converters.VariantContextConverter
-import org.bdgenomics.adam.rdd.ADAMContext._
-import org.bdgenomics.adam.rdd.{ ADAMSaveAnyArgs, GenomicDataset }
+import org.bdgenomics.adam.ds.ADAMContext._
+import org.bdgenomics.adam.ds.{ ADAMSaveAnyArgs, GenomicDataset }
+import org.bdgenomics.adam.ds.variant.GenotypeDataset
+import org.bdgenomics.adam.util.FileExtensions._
+import org.bdgenomics.formats.avro.Genotype
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.{ Argument, Option ⇒ Args4jOption }
 
@@ -89,46 +94,48 @@ class TransformGenotypes(val args: TransformGenotypesArgs)
   /**
    * Coalesce the specified GenomicDataset if requested.
    *
-   * @param rdd GenomicDataset to coalesce.
+   * @param ds GenomicDataset to coalesce.
    * @return The specified GenomicDataset coalesced if requested.
    */
-  private def maybeCoalesce[U <: GenomicDataset[_, _, U]](rdd: U): U = {
+  private def maybeCoalesce(ds: GenotypeDataset): GenotypeDataset = {
     if (args.coalesce != -1) {
-      log.info("Coalescing the number of partitions to '%d'".format(args.coalesce))
-      if (args.coalesce > rdd.rdd.partitions.length || args.forceShuffle) {
-        rdd.transform(_.coalesce(args.coalesce, shuffle = true))
+      info("Coalescing the number of partitions to '%d'".format(args.coalesce))
+      if (args.coalesce > ds.rdd.partitions.length || args.forceShuffle) {
+        ds.transform((rdd: RDD[Genotype]) => rdd.coalesce(args.coalesce, shuffle = true))
       } else {
-        rdd.transform(_.coalesce(args.coalesce, shuffle = false))
+        ds.transform((rdd: RDD[Genotype]) => rdd.coalesce(args.coalesce, shuffle = false))
       }
     } else {
-      rdd
+      ds
     }
   }
 
   /**
    * Sort the specified GenomicDataset if requested.
    *
-   * @param rdd GenomicDataset to sort.
+   * @param ds GenomicDataset to sort.
    * @return The specified GenomicDataset sorted if requested.
    */
-  private def maybeSort[U <: GenomicDataset[_, _, U]](rdd: U): U = {
+  private def maybeSort[U <: GenomicDataset[_, _, U]](ds: U): U = {
     if (args.sort) {
-      log.info("Sorting before saving")
-      rdd.sort()
+      info("Sorting before saving")
+      ds.sort()
     } else if (args.sortLexicographically) {
-      log.info("Sorting lexicographically before saving")
-      rdd.sortLexicographically()
+      info("Sorting lexicographically before saving")
+      ds.sortLexicographically()
     } else {
-      rdd
+      ds
     }
   }
 
   def run(sc: SparkContext) {
+    checkWriteablePath(args.outputPath, sc.hadoopConfiguration)
+
     require(!(args.sort && args.sortLexicographically),
       "Cannot set both -sort_on_save and -sort_lexicographically_on_save.")
 
     if (args.nestedAnnotations) {
-      log.info("Populating the variant.annotation field in the Genotype records")
+      info("Populating the variant.annotation field in the Genotype records")
       sc.hadoopConfiguration.setBoolean(VariantContextConverter.nestAnnotationInGenotypesProperty, true)
     }
 
@@ -138,15 +145,14 @@ class TransformGenotypes(val args: TransformGenotypesArgs)
       optProjection = None,
       stringency = stringency)
 
-    if (args.outputPath.endsWith(".vcf")) {
-      maybeSort(maybeCoalesce(genotypes.toVariantContexts)).saveAsVcf(args)
+    if (isVcfExt(args.outputPath)) {
+      maybeSort(maybeCoalesce(genotypes).toVariantContexts).saveAsVcf(args)
     } else {
       if (args.partitionByStartPos) {
         maybeSort(maybeCoalesce(genotypes)).saveAsPartitionedParquet(args.outputPath, partitionSize = args.partitionedBinSize)
       } else {
         maybeSort(maybeCoalesce(genotypes)).saveAsParquet(args)
       }
-
     }
   }
 }

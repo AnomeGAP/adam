@@ -19,11 +19,8 @@ package org.bdgenomics.adam.models
 
 import com.esotericsoftware.kryo.io.{ Input, Output }
 import com.esotericsoftware.kryo.{ Kryo, Serializer }
-import org.apache.spark.rdd.MetricsContext._
 import org.apache.spark.rdd.RDD
-import org.bdgenomics.adam.instrumentation.Timers._
-import org.bdgenomics.adam.rdd.variant.VariantDataset
-import org.bdgenomics.utils.misc.Logging
+import org.bdgenomics.adam.ds.variant.VariantDataset
 import scala.annotation.tailrec
 import scala.math.{ max, min }
 
@@ -37,7 +34,7 @@ import scala.math.{ max, min }
  */
 class SnpTable private[models] (
     private[models] val indices: Map[String, (Int, Int)],
-    private[models] val sites: Array[Long]) extends Serializable with Logging {
+    private[models] val sites: Array[Long]) extends Serializable {
 
   private val midpoints: Map[String, Int] = {
     @tailrec def pow2ceil(length: Int, i: Int = 1): Int = {
@@ -112,7 +109,7 @@ class SnpTable private[models] (
   /**
    * Is there a known SNP at the reference location of this Residue?
    */
-  private[adam] def maskedSites(rr: ReferenceRegion): Set[Long] = CheckingForMask.time {
+  private[adam] def maskedSites(rr: ReferenceRegion): Set[Long] = {
     val optRange = indices.get(rr.referenceName)
 
     optRange.flatMap(range => {
@@ -148,8 +145,8 @@ object SnpTable {
    * @param variants The variants to populate the table from.
    * @return Returns a new SNPTable containing the input variants.
    */
-  def apply(variants: VariantDataset): SnpTable = CreatingKnownSnpsTable.time {
-    val (indices, positions) = CollectingSnps.time {
+  def apply(variants: VariantDataset): SnpTable = {
+    val (indices, positions) = {
       val sortedVariants = variants.sort()
         .rdd
         .cache()

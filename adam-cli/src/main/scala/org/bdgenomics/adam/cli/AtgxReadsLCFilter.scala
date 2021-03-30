@@ -1,10 +1,10 @@
 package org.bdgenomics.adam.cli
-import org.bdgenomics.formats.avro.AlignmentRecord
+import org.bdgenomics.formats.avro.Alignment
 import scala.annotation.switch
 
 class AtgxReadsLCFilter extends java.io.Serializable {
   // return tuple of (Iterator(ordinary reads), Iterator(low complexity reads)
-  def filterReads(iter: Iterator[AlignmentRecord], invFlag: Boolean = false, kmer: Int, thresholdLenFactor: Int): Iterator[AlignmentRecord] = {
+  def filterReads(iter: Iterator[Alignment], invFlag: Boolean = false, kmer: Int, thresholdLenFactor: Int): Iterator[Alignment] = {
     val q =
       if (!invFlag)
         iter.filter(x => !isLC(x.getSequence, kmer, thresholdLenFactor))

@@ -3,12 +3,12 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>org.bdgenomics.adam</groupId>
-    <artifactId>adam-parent-spark2_2.11</artifactId>
-    <version>0.26.0</version>
+    <artifactId>adam-parent-spark3_2.12</artifactId>
+    <version>0.35.0</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 
-  <artifactId>adam-assembly-spark2_2.11</artifactId>
+  <artifactId>adam-assembly-spark3_2.12</artifactId>
   <packaging>jar</packaging>
   <name>ADAM_${scala.version.prefix}: Assembly</name>
   <build>
@@ -39,6 +39,13 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
+        <dependencies>
+          <dependency>
+            <groupId>org.bdgenomics.adam</groupId>
+            <artifactId>adam-shade-spark3_${scala.version.prefix}</artifactId>
+            <version>${project.version}</version>
+          </dependency>
+        </dependencies>
         <configuration>
           <createDependencyReducedPom>false</createDependencyReducedPom>
           <filters>
@@ -51,6 +58,12 @@
               </excludes>
             </filter>
           </filters>
+          <relocations>
+            <relocation>
+              <pattern>org.apache.parquet.avro</pattern>
+              <shadedPattern>org.bdgenomics.adam.shaded.org.apache.parquet.avro</shadedPattern>
+            </relocation>
+          </relocations>
         </configuration>
         <executions>
           <execution>
@@ -59,6 +72,7 @@
               <goal>shade</goal>
             </goals>
             <configuration>
+              <shaderHint>workaround</shaderHint>
               <transformers>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
               </transformers>
@@ -109,7 +123,7 @@
   <dependencies>
     <dependency>
       <groupId>org.bdgenomics.adam</groupId>
-      <artifactId>adam-cli-spark2_${scala.version.prefix}</artifactId>
+      <artifactId>adam-cli-spark3_${scala.version.prefix}</artifactId>
       <scope>compile</scope>
     </dependency>
   </dependencies>

@@ -24,8 +24,8 @@ from setuptools import find_packages, setup
 
 from version import version as adam_version
 
-if sys.version_info < (2, 7):
-    print("Python versions prior to 2.7 are not supported for pip installed ADAM.",
+if sys.version_info < (3, 1):
+    print("Python versions prior to 3.1 are not supported for pip installed ADAM.",
           file=sys.stderr)
     exit(-1)
 
@@ -63,7 +63,7 @@ elif len(JARS_PATH) == 0 and not os.path.exists(TEMP_PATH):
     print(incorrect_invocation_message, file=sys.stderr)
     sys.exit(-1)
 
-in_adam = os.path.isfile("../adam-core/src/main/scala/org/bdgenomics/adam/rdd/ADAMContext.scala")
+in_adam = os.path.isfile("../adam-core/src/main/scala/org/bdgenomics/adam/ds/ADAMContext.scala")
 
 if in_adam:
     try:
@@ -91,20 +91,15 @@ try:
     # bdgenomics.adam will search for ADAM_HOME with Python.
     scripts.append("bdgenomics/adam/find_adam_home.py")
 
-    long_description = "!!!!! missing pandoc do not upload to PyPI !!!!"
-    try:
-        import pypandoc
-        long_description = pypandoc.convert('README.md', 'rst')
-    except ImportError:
-        print("Could not import pypandoc - required to package bdgenomics.adam", file=sys.stderr)
-    except OSError:
-        print("Could not convert - pandoc is not installed", file=sys.stderr)
+    with open("README.md", "r") as fh:
+        long_description = fh.read()
 
     setup(
         name='bdgenomics.adam',
         version=adam_version,
         description='A fast, scalable genome analysis system',
         long_description=long_description,
+        long_description_content_type='text/markdown',
         author='Big Data Genomics',
         author_email='adam-developers@googlegroups.com',
         url="https://github.com/bdgenomics/adam",
@@ -118,7 +113,6 @@ try:
                       'bdgenomics.adam.bin': ['*']},
         classifiers=[
             'License :: OSI Approved :: Apache Software License',
-            'Programming Language :: Python :: 2.7',
             'Programming Language :: Python :: 3',
             'Programming Language :: Python :: 3.4',
             'Programming Language :: Python :: 3.5',
@@ -133,4 +127,3 @@ finally:
         os.rmdir(JARS_TARGET)
         os.remove(SCRIPTS_TARGET)
         os.rmdir(TEMP_PATH)
-

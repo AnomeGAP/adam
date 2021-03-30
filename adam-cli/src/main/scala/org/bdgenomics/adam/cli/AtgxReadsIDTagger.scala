@@ -1,7 +1,7 @@
 package org.bdgenomics.adam.cli
 
 import org.apache.spark.TaskContext
-import org.bdgenomics.formats.avro.AlignmentRecord
+import org.bdgenomics.formats.avro.Alignment
 import scala.collection.mutable.HashSet
 
 class AtgxReadsIDTagger {
@@ -15,7 +15,7 @@ class AtgxReadsIDTagger {
    * we have the read1.fq.gz and read2.fq.gz chopped into 600MB plaintext length, which includes ~1.9M reads for read
    * length of 151.
    */
-  def tag(iter: Iterator[AlignmentRecord], partitionSerialOffset: Int = 2097152): Iterator[AlignmentRecord] = {
+  def tag(iter: Iterator[Alignment], partitionSerialOffset: Int = 2097152): Iterator[Alignment] = {
 
     /**
      * INPUT:

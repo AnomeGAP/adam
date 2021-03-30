@@ -1,7 +1,7 @@
 package org.bdgenomics.adam.cli
 
 import org.apache.spark.SparkContext
-import org.bdgenomics.formats.avro.AlignmentRecord
+import org.bdgenomics.formats.avro.Alignment
 import org.bdgenomics.adam.util.ArrayByteUtils._
 
 import scala.collection.mutable.Queue
@@ -20,7 +20,7 @@ class AtgxReadsBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, w
   val ambiguousCnt = sc.longAccumulator("ambiguous_counter")
   val unknownCnt = sc.longAccumulator("unknown_counter")
 
-  def trim(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
+  def trim(iter: Iterator[Alignment]): Iterator[Alignment] = {
     val queue = new Queue[Int]
     iter.map { record =>
       val name = record.getReadName
@@ -44,22 +44,22 @@ class AtgxReadsBarcodeTrimmer(sc: SparkContext, barcodeLen: Int, nMerLen: Int, w
     println(s"10x barcode unknown: ${unknownCnt.value} ${unknownCnt.value.toDouble / total * 100}")
   }
 
-  private def trimBarcode(r1: AlignmentRecord): (AlignmentRecord, Int) = {
+  private def trimBarcode(r1: Alignment): (Alignment, Int) = {
     val seq = r1.getSequence
-    val quality = r1.getQuality
+    val quality = r1.getQualityScores
     // create a new String to allow the original String to be GC
     val barcode = new String(seq.substring(0, barcodeLen))
     val code = matchWhitelist(barcode)
 
     r1.setSequence(new String(seq.substring(barcodeLen + nMerLen)))
-    r1.setQuality(new String(quality.substring(barcodeLen + nMerLen)))
+    r1.setQualityScores(new String(quality.substring(barcodeLen + nMerLen)))
     val (org, iw) = AtgxReadsInfoParser.parseFromName(r1.getReadName)
     iw.setBarcode(code)
     r1.setReadName(AtgxReadsInfoParser.updateName(org, iw))
     r1 -> code
   }
 
-  private def addBarcode(r2: AlignmentRecord, barcode: Int): AlignmentRecord = {
+  private def addBarcode(r2: Alignment, barcode: Int): Alignment = {
     val (org, iw) = AtgxReadsInfoParser.parseFromName(r2.getReadName)
     iw.setBarcode(barcode)
     r2.setReadName(AtgxReadsInfoParser.updateName(org, iw))

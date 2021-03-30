@@ -74,10 +74,10 @@ fall into several general categories:
    -  ``-force_load_ifastq``: Forces ADAM to try to load the input as
       interleaved FASTQ.
    -  ``-force_load_parquet``: Forces ADAM to try to load the input as
-      Parquet encoded using the ADAM ``AlignmentRecord`` schema.
+      Parquet encoded using the ADAM ``Alignment`` schema.
    -  ``-limit_projection``: If loading as Parquet, sets a projection
       that does not load the ``attributes`` or ``origQual`` fields of
-      the ``AlignmentRecord``.
+      the ``Alignment``.
    -  ``-aligned_read_predicate``: If loading as Parquet, only loads
       aligned reads.
    -  ``-region_predicate``: A string indicating that reads should be
@@ -160,9 +160,9 @@ fall into several general categories:
    rewritten to 10, and all quality scores between 20–49 will be
    rewritten to 30.
 -  ``mismatchingPositions`` tagging options: We can recompute the
-   ``mismatchingPositions`` field of an AlignmentRecord (SAM "MD" tag)
+   ``mismatchingPositions`` field of an Alignment (SAM "MD" tag)
    with the ``-add_md_tags`` flag. This flag takes a path to a reference
-   file in either FASTA or Parquet ``NucleotideContigFragment`` format.
+   file in either FASTA or Parquet ``Sequence`` format.
    Additionally, this engine takes the following options:
 
    -  ``-md_tag_fragment_size``: If loading from FASTA, sets the size of
@@ -185,12 +185,14 @@ fall into several general categories:
       number of partitions to fewer than the number of Spark executors.
       This may have a substantial performance cost, and will invalidate
       any sort order.
-   -  ``-sort_reads``: Sorts reads by alignment position. Unmapped reads
-      are placed at the end of all reads. Contigs are ordered by
-      sequence record index.
-   -  ``-sort_lexicographically``: Sorts reads by alignment position.
-      Unmapped reads are placed at the end of all reads. Contigs are
-      ordered lexicographically.
+   -  ``-sort_by_read_name``: Sorts alignments by read name.
+   -  ``-sort_by_reference_position``: Sorts alignments by the location
+      where the reads are aligned. Unaligned reads are put at the end and
+      sorted by read name. References are ordered lexicographically.
+   -  ``-sort_by_reference_position_and_index``: Sorts alignments by the
+      location where the reads are aligned. Unaligned reads are put at the
+      end and sorted by read name. References are ordered by index that they
+      are ordered in the reference SequenceDictionary.
    -  ``-sort_fastq_output``: Ignored if not saving to FASTQ. If saving
       to FASTQ, sorts the output reads by read name.
 
@@ -342,21 +344,22 @@ This command takes several optional arguments:
 
 This command does not support Parquet output, so the only `default
 options <#default-args>`__ that this command supports is
-``-print_metrics``.
+``-print_metrics``. Note ``-print_metrics`` is deprecated in ADAM version
+0.31.0 and will be removed in version 0.32.0.
 
-reads2coverage
+coverage
 ~~~~~~~~~~~~~~
 
-The ``reads2coverage`` command computes per-locus coverage from reads
+The ``coverage`` command computes per-locus coverage from reads
 and saves the coverage counts as features. Takes two required arguments:
 
-1. ``INPUT``: The input path. A file containing reads in any of the
-   supported ADAM read input formats.
+1. ``INPUT``: The input path. A file containing alignments in any of the
+   supported ADAM alignment input formats.
 2. ``OUTPUT``: The path to save the coverage counts to. Saves in any of
    the ADAM supported feature file formats.
 
 In addition to the `default options <#default-args>`__,
-``reads2coverage`` takes the following options:
+``coverage`` takes the following options:
 
 -  ``-collapse``: If two (or more) neighboring sites have the same
    coverage, we collapse them down into a single genomic feature.

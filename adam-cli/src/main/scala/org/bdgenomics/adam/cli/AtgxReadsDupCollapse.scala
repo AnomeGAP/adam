@@ -2,7 +2,7 @@ package org.bdgenomics.adam.cli
 
 import org.apache.spark.rdd.RDD
 import org.bdgenomics.adam.cli.Utils.reverseComplementary
-import org.bdgenomics.formats.avro.AlignmentRecord
+import org.bdgenomics.formats.avro.Alignment
 import scala.collection.mutable.ArrayBuffer
 
 class AtgxReadsDupCollapse extends java.io.Serializable {
@@ -14,27 +14,27 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
   val qualMin = 33
   val qualMax = 74
 
-  def collapse(rdd: RDD[AlignmentRecord]): RDD[AlignmentRecord] = {
+  def collapse(rdd: RDD[Alignment]): RDD[Alignment] = {
     rdd
       .flatMap(
         fw => {
-          val rc = new AlignmentRecord
+          val rc = new Alignment
           rc.setSequence(reverseComplementary(fw.getSequence))
-          rc.setQuality(fw.getQuality.reverse)
+          rc.setQualityScores(fw.getQualityScores.reverse)
           val (_, iw) = AtgxReadsInfoParser.parseFromName(fw.getReadName)
-          ArrayBuffer[(Boolean, Long, AlignmentRecord)](
+          ArrayBuffer[(Boolean, Long, Alignment)](
             (false, iw.getID, fw),
             (true, iw.getID, rc))
         })
       .keyBy(x => x._3.getSequence)
-      .aggregateByKey(List.empty[(Boolean, Long, AlignmentRecord)])({ case (r, c) => c :: r }, { case (r, c) => c ::: r })
+      .aggregateByKey(List.empty[(Boolean, Long, Alignment)])({ case (r, c) => c :: r }, { case (r, c) => c ::: r })
       .filter { case (_, list) => !list.minBy(_._2)._1 } // keep list that alignment record having min ID is not RC
       .map {
         case (_, list) =>
           val depth = list.size
           val encodedDepth = depthEncoder(depth)
-          val quals = list.map(_._3.getQuality.toList)
-          val len = list.head._3.getQuality.length
+          val quals = list.map(_._3.getQualityScores.toList)
+          val len = list.head._3.getQualityScores.length
           val bestQual = chooseBestQual(quals, len - 1, List())
             .map { q =>
               if (q > qualMax || q < qualMin)
@@ -43,7 +43,7 @@ class AtgxReadsDupCollapse extends java.io.Serializable {
             }
             .mkString
           val min = list.minBy(_._2)._3
-          min.setQuality(bestQual)
+          min.setQualityScores(bestQual)
           min
       }
   }

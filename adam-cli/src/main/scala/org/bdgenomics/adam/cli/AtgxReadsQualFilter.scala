@@ -1,6 +1,6 @@
 package org.bdgenomics.adam.cli
 
-import org.bdgenomics.formats.avro.AlignmentRecord
+import org.bdgenomics.formats.avro.Alignment
 
 import scala.annotation.tailrec
 
@@ -20,11 +20,11 @@ class AtgxReadsQualFilter extends java.io.Serializable {
     }
   }
 
-  def filterReads(iter: Iterator[AlignmentRecord], minQual: Int = 63, maxCount: Int = 10, invFlag: Boolean = false): Iterator[AlignmentRecord] = {
+  def filterReads(iter: Iterator[Alignment], minQual: Int = 63, maxCount: Int = 10, invFlag: Boolean = false): Iterator[Alignment] = {
     iter
       .flatMap(
         x => {
-          val failCount = scan(x.getQuality.reverse, minQual, maxCount, 0)
+          val failCount = scan(x.getQualityScores.reverse, minQual, maxCount, 0)
           if (!invFlag) {
             if (failCount < maxCount)
               Some(x)

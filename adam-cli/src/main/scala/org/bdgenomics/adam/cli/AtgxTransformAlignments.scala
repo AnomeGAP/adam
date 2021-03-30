@@ -4,7 +4,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{ FileSystem, Path }
 import org.apache.spark.Partitioner
 import org.bdgenomics.adam.models.SequenceDictionary
-import org.bdgenomics.formats.avro.AlignmentRecord
+import org.bdgenomics.formats.avro.Alignment
 
 import scala.collection.immutable
 
@@ -122,7 +122,7 @@ class AtgxTransformAlignments {
       grch37.map(x => (x, ref(x))).sortBy(_._2).map(_._1).zipWithIndex).toMap
   }
 
-  def transform(sd: SequenceDictionary, iter: Iterator[AlignmentRecord], DisableSVDup: Boolean): Iterator[(String, AlignmentRecord)] = {
+  def transform(sd: SequenceDictionary, iter: Iterator[Alignment], DisableSVDup: Boolean): Iterator[(String, Alignment)] = {
     val partitionSize: Int = 1000000
     val binSizeMap = mkBinSizeMap()
     val map = mkReferenceIdMap(sd)
@@ -132,7 +132,7 @@ class AtgxTransformAlignments {
     val sufwords = Seq("_decoy", "_random")
     val conwords = Seq("GL000", "NC_007605", "hs37d5", "_hap", "GL", "KI")
 
-    iter.flatMap[(String, AlignmentRecord)](x => {
+    iter.flatMap[(String, Alignment)](x => {
       if (x.getReadMapped == false) { // unmapped reads
         val randomBinNumber = 0 + r.nextInt((24 - 0) + 1) // range: 0-24
         Array((">X-UNMAPPED@%05d@0".format(randomBinNumber), x)) // e.g., X-UNMAPPED_00015_0

@@ -33,8 +33,23 @@ setGeneric("loadAlignments",
 
 #' @rdname ADAMContext
 #' @export
-setGeneric("loadContigFragments",
-           function(ac, filePath) { standardGeneric("loadContigFragments") })
+setGeneric("loadDnaSequences",
+           function(ac, filePath) { standardGeneric("loadDnaSequences") })
+
+#' @rdname ADAMContext
+#' @export
+setGeneric("loadProteinSequences",
+           function(ac, filePath) { standardGeneric("loadProteinSequences") })
+
+#' @rdname ADAMContext
+#' @export
+setGeneric("loadRnaSequences",
+           function(ac, filePath) { standardGeneric("loadRnaSequences") })
+
+#' @rdname ADAMContext
+#' @export
+setGeneric("loadSlices",
+           function(ac, filePath, ...) { standardGeneric("loadSlices") })
 
 #' @rdname ADAMContext
 #' @export
@@ -254,53 +269,58 @@ setGeneric("shuffleRegionJoinAndGroupByLeft",
                standardGeneric("shuffleRegionJoinAndGroupByLeft")
            })
 
-#### AlignmentRecord operations ####
+#### Alignment operations ####
 
-#' The AlignmentRecordDataset is the class used to manipulate genomic read data.
+#' The AlignmentDataset is the class used to manipulate genomic read data.
 #' 
-#' @name AlignmentRecordDataset
+#' @name AlignmentDataset
 NULL
 
-#' @rdname AlignmentRecordDataset
+#' @rdname AlignmentDataset
 #' @export
 setGeneric("toFragments",
            function(ardd) { standardGeneric("toFragments") })
 
-#' @rdname AlignmentRecordDataset
+#' @rdname AlignmentDataset
 #' @param ardd The genomic dataset to apply this to.
 #' @param ... additional argument(s).
 #' @export
 setGeneric("toCoverage",
            function(ardd, ...) { standardGeneric("toCoverage") })
 
-#' @rdname AlignmentRecordDataset
+#' @rdname AlignmentDataset
 #' @param kmerLength The value of _k_ to use for cutting _k_-mers.
 #' @export
 setGeneric("countKmers",
            function(ardd, kmerLength) { standardGeneric("countKmers") })
 
-#' @rdname AlignmentRecordDataset
+#' @rdname AlignmentDataset
 #' @param filePath The path to save the file to.
 #' @export
 setGeneric("saveAsSam",
            function(ardd, filePath, ...) { standardGeneric("saveAsSam") })
 
-#' @rdname AlignmentRecordDataset
+#' @rdname AlignmentDataset
 #' @export
-setGeneric("sortReadsByReferencePosition",
-           function(ardd) { standardGeneric("sortReadsByReferencePosition") })
+setGeneric("sortByReadName",
+           function(ardd) { standardGeneric("sortByReadName") })
 
-#' @rdname AlignmentRecordDataset
+#' @rdname AlignmentDataset
 #' @export
-setGeneric("sortReadsByReferencePositionAndIndex",
-           function(ardd) { standardGeneric("sortReadsByReferencePositionAndIndex") })
+setGeneric("sortByReferencePosition",
+           function(ardd) { standardGeneric("sortByReferencePosition") })
 
-#' @rdname AlignmentRecordDataset
+#' @rdname AlignmentDataset
+#' @export
+setGeneric("sortByReferencePositionAndIndex",
+           function(ardd) { standardGeneric("sortByReferencePositionAndIndex") })
+
+#' @rdname AlignmentDataset
 #' @export
 setGeneric("markDuplicates",
            function(ardd) { standardGeneric("markDuplicates") })
 
-#' @rdname AlignmentRecordDataset
+#' @rdname AlignmentDataset
 #' @param knownSnps A table of known SNPs to mask valid variants.
 #' @param validationStringency The stringency to apply towards validating BQSR.
 #' @export
@@ -309,7 +329,7 @@ setGeneric("recalibrateBaseQualities",
              standardGeneric("recalibrateBaseQualities")
            })
 
-#' @rdname AlignmentRecordDataset
+#' @rdname AlignmentDataset
 #' @export
 setGeneric("realignIndels",
            function(ardd, ...) { standardGeneric("realignIndels") })
@@ -358,8 +378,8 @@ NULL
 #' @rdname FragmentDataset
 #' @param ardd The genomic dataset to apply this to.
 #' @export
-setGeneric("toReads",
-           function(ardd) { standardGeneric("toReads") })
+setGeneric("toAlignments",
+           function(ardd) { standardGeneric("toAlignments") })
 
 #### Genotype and Variant operations ####
 
@@ -375,20 +395,21 @@ setGeneric("toVariantContexts",
 #' Converts this genomic dataset to Variants.
 #'
 #' @param ardd The genomic dataset to apply this to.
+#' @param ... additional argument(s).
 #' @return Returns this genomic dataset of Genotypes as Variants.
 #' @export
 setGeneric("toVariants",
            function(ardd, ...) { standardGeneric("toVariants") })
 
-#### NucleotideContigFragment operations ####
+#### Slice operations ####
 
-#' The NucleotideContigFragmentDataset class is used to manipulate contigs.
+#' The SliceDataset class is used to manipulate slices.
 #' 
-#' @name NucleotideContigFragmentDataset
+#' @name SliceDataset
 NULL
 
-#' @rdname NucleotideContigFragmentDataset
-#' @param ardd The genomic dataset to apply this to.
+#' @rdname SliceDataset
+#' @param ardd The RDD to apply this to.
 #' @param flankLength The length to extend adjacent records by.
 #' @export
 setGeneric("flankAdjacentFragments",

@@ -13,10 +13,10 @@ use this, import the implicit, and call an ``ADAMContext`` method:
     import org.apache.spark.SparkContext
 
     // the ._ at the end imports the implicit from the ADAMContext companion object
-    import org.bdgenomics.adam.rdd.ADAMContext._
-    import org.bdgenomics.adam.rdd.read.AlignmentRecordDataset
+    import org.bdgenomics.adam.ds.ADAMContext._
+    import org.bdgenomics.adam.ds.read.AlignmentDataset
 
-    def loadReads(filePath: String, sc: SparkContext): AlignmentRecordDataset = {
+    def loadReads(filePath: String, sc: SparkContext): AlignmentDataset = {
       sc.loadAlignments(filePath)
     }
 
@@ -26,12 +26,12 @@ In Java, instantiate a JavaADAMContext, which wraps an ADAMContext:
 
     import org.apache.spark.apis.java.JavaSparkContext;
     import org.bdgenomics.adam.apis.java.JavaADAMContext;
-    import org.bdgenomics.adam.rdd.ADAMContext;
-    import org.bdgenomics.adam.rdd.read.AlignmentRecordDataset;
+    import org.bdgenomics.adam.ds.ADAMContext;
+    import org.bdgenomics.adam.ds.read.AlignmentDataset;
 
     class LoadReads {
 
-      public static AlignmentRecordDataset loadReads(String filePath,
+      public static AlignmentDataset loadReads(String filePath,
                                                      JavaSparkContext jsc) {
         // create an ADAMContext first
         ADAMContext ac = new ADAMContext(jsc.sc());
@@ -55,7 +55,7 @@ From Python, instantiate an ADAMContext, which wraps a SparkContext:
 
 With an ``ADAMContext``, you can load:
 
--  Single reads as an ``AlignmentRecordDataset``:
+-  Single reads as an ``AlignmentDataset``:
 
    -  From SAM/BAM/CRAM using ``loadBam`` (Scala only)
    -  Selected regions from an indexed BAM/CRAM using ``loadIndexedBam`` (Scala, Java, and Python)
@@ -100,18 +100,24 @@ With an ``ADAMContext``, you can load:
    -  From partitioned Parquet using ``loadPartitionedParquetFeatures`` (Scala only)
    -  Autodetected from any of the above using ``loadFeatures`` (Scala, Java, Python, and R)
 
--  Fragmented contig sequence as a ``NucleotideContigFragmentDataset``:
+-  Sequences as a ``SequenceDataset``:
 
-   -  From FASTA with ``loadFasta`` (Scala only)
-   -  From Parquet with ``loadParquetContigFragments`` (Scala only)
-   -  From partitioned Parquet with ``loadPartitionedParquetContigFragments`` (Scala only)
-   -  Autodetected from either of the above using ``loadSequences`` (Scala, Java, Python, and R)
+   -  From FASTA with ``loadFastaDna``, ``loadFastaProtein``, ``loadFastaRna`` (Scala only)
+   -  From Parquet with ``loadParquetSequences`` (Scala only)
+   -  Autodetected from either of the above using ``loadDnaSequences``, ``loadProteinSequences``, ``loadRnaSequences`` (Scala, Java, Python, and R)
+
+-  Sequence slices as a ``SliceDataset``:
+
+   -  From FASTA with ``loadFastaDna`` (Scala only)
+   -  From Parquet with ``loadParquetSlices`` (Scala only)
+   -  Autodetected from either of the above using ``loadSlices`` (Scala, Java, Python, and R)
 
 -  Coverage data as a ``CoverageDataset``:
 
    -  From Parquet using ``loadParquetCoverage`` (Scala only)
    -  From Parquet or any of the feature file formats using ``loadCoverage`` (Scala only)
-   -  Contig sequence as a broadcastable ``ReferenceFile`` using ``loadReferenceFile``, which supports
+
+-  Reference sequences as a broadcastable ``ReferenceFile`` using ``loadReferenceFile``, which supports
       2bit files, FASTA, and Parquet (Scala only)
 
 The methods labeled "Scala only" may be usable from Java, but may not be

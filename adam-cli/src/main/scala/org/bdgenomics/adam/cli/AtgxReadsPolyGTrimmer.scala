@@ -1,13 +1,13 @@
 package org.bdgenomics.adam.cli
 
-import org.bdgenomics.formats.avro.AlignmentRecord
+import org.bdgenomics.formats.avro.Alignment
 
 import scala.annotation.tailrec
 
 // base on fastp
 // https://github.com/OpenGene/fastp/blob/master/src/polyx.cpp
 class AtgxReadsPolyGTrimmer {
-  def trim(iter: Iterator[AlignmentRecord], compareReq: Int, maxMismatch: Int, allowOneMismatchForEach: Int): Iterator[AlignmentRecord] = {
+  def trim(iter: Iterator[Alignment], compareReq: Int, maxMismatch: Int, allowOneMismatchForEach: Int): Iterator[Alignment] = {
     iter.map { record =>
       val seq = record.getSequence
       val len = seq.length
@@ -15,9 +15,9 @@ class AtgxReadsPolyGTrimmer {
 
       if (pos >= 0) {
         val trimmedSeq = new String(seq.substring(0, pos))
-        val trimmedQuality = new String(record.getQuality.substring(0, pos))
+        val trimmedQuality = new String(record.getQualityScores.substring(0, pos))
         record.setSequence(trimmedSeq)
-        record.setQuality(trimmedQuality)
+        record.setQualityScores(trimmedQuality)
       }
 
       record

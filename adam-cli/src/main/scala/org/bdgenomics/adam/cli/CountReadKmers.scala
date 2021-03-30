@@ -17,11 +17,14 @@
  */
 package org.bdgenomics.adam.cli
 
+import grizzled.slf4j.Logging
 import org.apache.spark.SparkContext
-import org.bdgenomics.adam.projections.{ AlignmentRecordField, Projection }
-import org.bdgenomics.adam.rdd.ADAMContext._
+import org.apache.spark.rdd.RDD
+import org.bdgenomics.adam.cli.FileSystemUtils._
+import org.bdgenomics.adam.projections.{ AlignmentField, Projection }
+import org.bdgenomics.adam.ds.ADAMContext._
+import org.bdgenomics.formats.avro.Alignment
 import org.bdgenomics.utils.cli._
-import org.bdgenomics.utils.misc.Logging
 import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
 
 object CountReadKmers extends BDGCommandCompanion {
@@ -33,7 +36,7 @@ object CountReadKmers extends BDGCommandCompanion {
   }
 }
 
-class CountReadKmersArgs extends Args4jBase with ParquetArgs {
+class CountReadKmersArgs extends Args4jBase with ParquetArgs with CramArgs {
   @Argument(required = true, metaVar = "INPUT", usage = "The ADAM, BAM or SAM file to count kmers from", index = 0)
   var inputPath: String = null
   @Argument(required = true, metaVar = "OUTPUT", usage = "Location for storing k-mer counts", index = 1)
@@ -50,16 +53,19 @@ class CountReadKmers(protected val args: CountReadKmersArgs) extends BDGSparkCom
   val companion = CountReadKmers
 
   def run(sc: SparkContext) {
+    checkWriteablePath(args.outputPath, sc.hadoopConfiguration)
+
+    args.configureCramFormat(sc)
 
     // read from disk
     var adamRecords = sc.loadAlignments(
       args.inputPath,
-      optProjection = Some(Projection(AlignmentRecordField.sequence))
+      optProjection = Some(Projection(AlignmentField.sequence))
     )
 
     if (args.repartition != -1) {
-      log.info("Repartitioning reads to '%d' partitions".format(args.repartition))
-      adamRecords = adamRecords.transform(_.repartition(args.repartition))
+      info("Repartitioning reads to '%d' partitions".format(args.repartition))
+      adamRecords = adamRecords.transform((rdd: RDD[Alignment]) => rdd.repartition(args.repartition))
     }
 
     // count kmers

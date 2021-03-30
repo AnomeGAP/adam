@@ -17,10 +17,13 @@
  */
 package org.bdgenomics.adam.models
 
+import java.lang.{ Long => JLong }
+
 import com.esotericsoftware.kryo.io.{ Input, Output }
 import com.esotericsoftware.kryo.{ Kryo, Serializer }
-import org.apache.parquet.filter2.dsl.Dsl._
-import org.apache.parquet.filter2.predicate.FilterPredicate
+import org.apache.parquet.filter2.predicate.{ FilterApi, FilterPredicate }
+import org.apache.parquet.filter2.predicate.Operators.{ BinaryColumn, LongColumn }
+import org.apache.parquet.io.api.Binary
 import org.bdgenomics.formats.avro._
 import org.bdgenomics.utils.interval.array.Interval
 import scala.math.{ max, min }
@@ -101,7 +104,7 @@ object ReferenceRegion {
       .split(",")
       .map(_.trim)
       .map(token => {
-        require(!token.isEmpty, "reference region must not be empty")
+        require(token.nonEmpty, "reference region must not be empty")
         val colonIdx = token.lastIndexOf(":")
         if (colonIdx == -1) {
           all(token)
@@ -175,7 +178,7 @@ object ReferenceRegion {
    * @param record Read to create region from.
    * @return Region corresponding to inclusive region of read alignment, if read is mapped.
    */
-  def opt(record: AlignmentRecord): Option[ReferenceRegion] = {
+  def opt(record: Alignment): Option[ReferenceRegion] = {
     if (record.getReadMapped) {
       Some(unstranded(record))
     } else {
@@ -227,7 +230,7 @@ object ReferenceRegion {
     ReferenceRegion(referenceName, start, end)
   }
 
-  private def checkRead(record: AlignmentRecord) {
+  private def checkRead(record: Alignment) {
     require(record.getReadMapped,
       "Cannot build reference region for unmapped read %s.".format(record))
     require(record.getReferenceName != null &&
@@ -247,7 +250,7 @@ object ReferenceRegion {
    *
    * @see stranded
    */
-  def unstranded(record: AlignmentRecord): ReferenceRegion = {
+  def unstranded(record: Alignment): ReferenceRegion = {
     checkRead(record)
     ReferenceRegion(record.getReferenceName, record.getStart, record.getEnd)
   }
@@ -263,7 +266,7 @@ object ReferenceRegion {
    *
    * @see unstranded
    */
-  def stranded(record: AlignmentRecord): ReferenceRegion = {
+  def stranded(record: Alignment): ReferenceRegion = {
     checkRead(record)
 
     val strand = Option(record.getReadNegativeStrand)
@@ -292,19 +295,37 @@ object ReferenceRegion {
   }
 
   /**
-   * Generates a reference region from assembly data. Returns None if the assembly does not
-   * have an ID or a start position.
+   * Generates a reference region from a sequence. Returns None if the sequence does not
+   * have a name or a length.
    *
-   * @param fragment Assembly fragment from which to generate data.
-   * @return Region corresponding to inclusive region of contig fragment.
+   * @param sequence Sequence from which to generate data.
+   * @return Region corresponding to inclusive region of the specified sequence.
    */
-  def apply(fragment: NucleotideContigFragment): Option[ReferenceRegion] = {
-    if (fragment.getContigName != null &&
-      fragment.getStart != null &&
-      fragment.getEnd != null) {
-      Some(ReferenceRegion(fragment.getContigName,
-        fragment.getStart,
-        fragment.getEnd))
+  def apply(sequence: Sequence): Option[ReferenceRegion] = {
+    if (sequence.getName != null &&
+      sequence.getLength != null) {
+      Some(ReferenceRegion(sequence.getName,
+        0L,
+        sequence.getLength))
+    } else {
+      None
+    }
+  }
+
+  /**
+   * Generates a reference region from a slice. Returns None if the slice does not
+   * have a name, a start position, or an end position.
+   *
+   * @param slice Slice from which to generate data.
+   * @return Region corresponding to inclusive region of the specified slice.
+   */
+  def apply(slice: Slice): Option[ReferenceRegion] = {
+    if (slice.getName != null &&
+      slice.getStart != null &&
+      slice.getEnd != null) {
+      Some(ReferenceRegion(slice.getName,
+        slice.getStart,
+        slice.getEnd))
     } else {
       None
     }
@@ -373,7 +394,7 @@ object ReferenceRegion {
       "Cannot create a predicate from an empty set of regions.")
     regions.toIterable
       .map(_.toPredicate)
-      .reduce(_ || _)
+      .reduce(FilterApi.or)
   }
 }
 
@@ -476,7 +497,7 @@ case class ReferenceRegion(
    * @return True if regions are adjacent.
    */
   def isAdjacent(other: ReferenceRegion): Boolean = {
-    distance(other).exists(_ == 1)
+    distance(other).contains(1)
   }
 
   /**
@@ -745,9 +766,12 @@ case class ReferenceRegion(
    *   region.
    */
   def toPredicate: FilterPredicate = {
-    ((LongColumn("end") > start) &&
-      (LongColumn("start") <= end) &&
-      (BinaryColumn("referenceName") === referenceName))
+    FilterApi.and(
+      FilterApi.and(
+        FilterApi.gt[JLong, LongColumn](FilterApi.longColumn("end"), start),
+        FilterApi.ltEq[JLong, LongColumn](FilterApi.longColumn("start"), end)),
+      FilterApi.eq[Binary, BinaryColumn](
+        FilterApi.binaryColumn("referenceName"), Binary.fromString(referenceName)))
   }
 
   override def hashCode: Int = {

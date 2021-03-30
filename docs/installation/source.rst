@@ -2,11 +2,7 @@ Building ADAM from Source
 =========================
 
 You will need to have `Apache Maven <http://maven.apache.org/>`__
-version 3.1.1 or later installed in order to build ADAM.
-
-    **Note:** The default configuration is for Hadoop 2.7.3. If building
-    against a different version of Hadoop, please pass
-    ``-Dhadoop.version=<HADOOP_VERSION>`` to the Maven command.
+version 3.3.9 or later installed in order to build ADAM.
 
 .. code:: bash
 
@@ -64,14 +60,6 @@ runs tests. To build this module, we require either an active
 `virtualenv <https://virtualenv.pypa.io/en/stable/>`__ environment.
 
 ADAM can run on both Python 2 and Python 3.
-`To setup and activate a Conda
-environment <https://conda.io/docs/using/envs.html>`__ for Python 2.7, run:
-
-.. code:: bash
-
-    conda create -n adam python=2.7 anaconda
-    source activate adam
-
 `To setup and activate a Conda
 environment <https://conda.io/docs/using/envs.html>`__ for Python 3.6, run:
 

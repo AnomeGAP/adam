@@ -52,7 +52,7 @@ createADAMContext <- function() {
 #' @export
 ADAMContext <- function(ss) {
     ssc = sparkR.callJMethod(ss, "sparkContext")
-    ac = sparkR.newJObject("org.bdgenomics.adam.rdd.ADAMContext", ssc)
+    ac = sparkR.newJObject("org.bdgenomics.adam.ds.ADAMContext", ssc)
     jac = sparkR.newJObject("org.bdgenomics.adam.api.java.JavaADAMContext", ac)
     
     new("ADAMContext", jac = jac)
@@ -66,7 +66,7 @@ javaStringency <- function(stringency) {
 }
 
 
-#' Load alignment records into an AlignmentRecordDataset.
+#' Load alignments into an AlignmentDataset.
 #'
 #' Loads path names ending in:
 #' * .bam/.cram/.sam as BAM/CRAM/SAM format,
@@ -95,10 +95,10 @@ setMethod("loadAlignments",
               jrdd <- sparkR.callJMethod(ac@jac,
                                          "loadAlignments",
                                          filePath, jStringency)
-              AlignmentRecordDataset(jrdd)
+              AlignmentDataset(jrdd)
           })
 
-#' Load nucleotide contig fragments into a NucleotideContigFragmentDataset.
+#' Load DNA sequences into a SequenceDataset.
 #'
 #' If the path name has a .fa/.fasta extension, load as FASTA format.
 #' Else, fall back to Parquet + Avro.
@@ -108,16 +108,83 @@ setMethod("loadAlignments",
 #'
 #' @param ac The ADAMContext.
 #' @param filePath The path to load the file from.
-#' @return Returns a genomic dataset containing nucleotide contig fragments.
+#' @return Returns a genomic dataset containing DNA sequences.
 #'
 #' @importFrom SparkR sparkR.callJMethod
 #'
 #' @export
-setMethod("loadContigFragments",
+setMethod("loadDnaSequences",
           signature(ac = "ADAMContext", filePath = "character"),
           function(ac, filePath) {
-              jrdd <- sparkR.callJMethod(ac@jac, "loadContigFragments", filePath)
-              NucleotideContigFragmentDataset(jrdd)
+              jrdd <- sparkR.callJMethod(ac@jac, "loadDnaSequences", filePath)
+              SequenceDataset(jrdd)
+          })
+
+#' Load protein sequences into a SequenceDataset.
+#'
+#' If the path name has a .fa/.fasta extension, load as FASTA format.
+#' Else, fall back to Parquet + Avro.
+#'
+#' For FASTA format, compressed files are supported through compression codecs configured
+#' in Hadoop, which by default include .gz and .bz2, but can include more.
+#'
+#' @param ac The ADAMContext.
+#' @param filePath The path to load the file from.
+#' @return Returns a genomic dataset containing protein sequences.
+#'
+#' @importFrom SparkR sparkR.callJMethod
+#'
+#' @export
+setMethod("loadProteinSequences",
+          signature(ac = "ADAMContext", filePath = "character"),
+          function(ac, filePath) {
+              jrdd <- sparkR.callJMethod(ac@jac, "loadProteinSequences", filePath)
+              SequenceDataset(jrdd)
+          })
+
+#' Load RNA sequences into a SequenceDataset.
+#'
+#' If the path name has a .fa/.fasta extension, load as FASTA format.
+#' Else, fall back to Parquet + Avro.
+#'
+#' For FASTA format, compressed files are supported through compression codecs configured
+#' in Hadoop, which by default include .gz and .bz2, but can include more.
+#'
+#' @param ac The ADAMContext.
+#' @param filePath The path to load the file from.
+#' @return Returns a genomic dataset containing RNA sequences.
+#'
+#' @importFrom SparkR sparkR.callJMethod
+#'
+#' @export
+setMethod("loadRnaSequences",
+          signature(ac = "ADAMContext", filePath = "character"),
+          function(ac, filePath) {
+              jrdd <- sparkR.callJMethod(ac@jac, "loadRnaSequences", filePath)
+              SequenceDataset(jrdd)
+          })
+
+#' Load slices into a SliceDataset.
+#'
+#' If the path name has a .fa/.fasta extension, load as DNA in FASTA format.
+#' Else, fall back to Parquet + Avro.
+#'
+#' For FASTA format, compressed files are supported through compression codecs configured
+#' in Hadoop, which by default include .gz and .bz2, but can include more.
+#'
+#' @param ac The ADAMContext.
+#' @param filePath The path to load the file from.
+#' @param maximumLength Maximum slice length.
+#' @return Returns a genomic dataset containing slices.
+#'
+#' @importFrom SparkR sparkR.callJMethod
+#'
+#' @export
+setMethod("loadSlices",
+          signature(ac = "ADAMContext", filePath = "character"),
+          function(ac, filePath, maximumLength = 10000L) {
+              jrdd <- sparkR.callJMethod(ac@jac, "loadSlices", filePath, maximumLength)
+              SliceDataset(jrdd)
           })
 
 #' Load fragments into a FragmentDataset.

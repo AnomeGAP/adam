@@ -4,53 +4,6 @@ Conversion tools
 These tools convert data between a legacy genomic file format and using
 ADAM's schemas to store data in Parquet.
 
-fasta2adam and adam2fasta
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-These commands convert between FASTA and Parquet files storing
-assemblies using the NucleotideContigFragment schema.
-
-``fasta2adam`` takes two required arguments:
-
-1. ``FASTA``: The input FASTA file to convert.
-2. ``ADAM``: The path to save the Parquet formatted
-   NucleotideContigFragments to.
-
-``fasta2adam`` supports the full set of `default
-options <#default-args>`__, as well as the following options:
-
--  ``-fragment_length``: The fragment length to shard a given contig
-   into. Defaults to 10,000bp.
--  ``-reads``: Path to a set of reads that includes sequence info. This
-   read path is used to obtain the sequence indices for ordering the
-   contigs from the FASTA file.
--  ``-repartition``: The number of partitions to save the data to. If
-   provided, forces a shuffle.
--  ``-verbose``: If given, enables additional logging where the sequence
-   dictionary is printed.
-
-``adam2fasta`` takes two required arguments:
-
-1. ``ADAM``: The path to a Parquet file containing
-   NucleotideContigFragments.
-2. ``FASTA``: The path to save the FASTA file to.
-
-``adam2fasta`` only supports the ``-print_metrics`` option from the
-`default options <#default-args>`__. Additionally, ``adam2fasta`` takes
-the following options:
-
--  ``-line_width``: The line width in characters to use for breaking
-   FASTA lines. Defaults to 60 characters.
--  ``-coalesce``: Sets the number of partitions to coalesce the output
-   to. If ``-force_shuffle_coalesce`` is not provided, the Spark engine
-   may ignore the coalesce directive.
--  ``-force_shuffle_coalesce``: Forces a shuffle that leads to the
-   output being saved with the number of partitions requested by
-   ``-coalesce``. This is necessary if the ``-coalesce`` would increase
-   the number of partitions, or if it would reduce the number of
-   partitions to fewer than the number of Spark executors. This may have
-   a substantial performance cost, and will invalidate any sort order.
-
 adam2fastq
 ~~~~~~~~~~
 
@@ -66,8 +19,10 @@ optional third argument:
    the second-of-pair reads to.
 
 ``adam2fastq`` only supports the ``-print_metrics`` option from the
-`default options <#default-args>`__. Additionally, ``adam2fastq`` takes
-the following options:
+`default options <#default-args>`__. Note ``-print_metrics`` is deprecated
+in ADAM version 0.31.0 and will be removed in version 0.32.0.
+
+Additionally, ``adam2fastq`` takes the following options:
 
 -  ``-no_projection``: By default, ``adam2fastq`` only projects the
    fields necessary for saving to FASTQ. This option disables that
@@ -112,17 +67,18 @@ Additionally, ``transformFragments`` takes the following options:
    ``0,20,10:20,50,30``, all quality scores between 0–19 will be
    rewritten to 10, and all quality scores between 20–49 will be
    rewritten to 30.
--  ``-load_as_reads``: Treats the input as a read file (uses
+-  ``-load_as_alignments``: Treats the input as an alignment file (uses
    ``loadAlignments`` instead of ``loadFragments``), which behaves
    differently for unpaired FASTQ.
--  ``-save_as_reads``: Saves the output as a Parquet file of
-   ``AlignmentRecord``\ s, as SAM/BAM/CRAM, or as FASTQ, depending on
+-  ``-save_as_alignments``: Saves the output as a Parquet file of
+   ``Alignment``\ s, as SAM/BAM/CRAM, or as FASTQ, depending on
    the output file extension. If this option is specified, the output
    can also be sorted:
--  ``-sort_reads``: Sorts reads by alignment position. Unmapped reads
-   are placed at the end of all reads. Contigs are ordered by sequence
-   record index.
--  ``-sort_lexicographically``: Sorts reads by alignment position.
-   Unmapped reads are placed at the end of all reads. Contigs are
-   ordered lexicographically.
-
+-  ``-sort_by_read_name``: Sorts alignments by read name.
+-  ``-sort_by_reference_position``: Sorts alignments by the location
+   where the reads are aligned. Unaligned reads are put at the end and
+   sorted by read name. References are ordered lexicographically.
+-  ``-sort_by_reference_position_and_index``: Sorts alignments by the
+   location where the reads are aligned. Unaligned reads are put at the
+   end and sorted by read name. References are ordered by index that they
+   are ordered in the reference SequenceDictionary.

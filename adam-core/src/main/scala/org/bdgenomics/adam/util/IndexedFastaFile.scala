@@ -18,6 +18,7 @@
 
 package org.bdgenomics.adam.util
 
+import grizzled.slf4j.Logging
 import htsjdk.samtools.ValidationStringency
 import htsjdk.samtools.reference.{ FastaSequenceIndex, IndexedFastaSequenceFile }
 import java.net.URI
@@ -25,7 +26,6 @@ import java.nio.file.Paths
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkContext
 import org.bdgenomics.adam.models.{ SequenceDictionary, ReferenceRegion }
-import org.bdgenomics.utils.misc.Logging
 
 /**
  * Loads and extracts sequences directly from indexed fasta or fa files. filePath requires fai index in the
@@ -58,7 +58,7 @@ case class IndexedFastaFile(sc: SparkContext,
 
   // Get sequence dictionary. If sequence dictionary is not defined,
   // generate sequence dictionary from file
-  val sequences =
+  val references =
     try {
       SequenceDictionary(ref.getSequenceDictionary)
     } catch {
@@ -67,7 +67,7 @@ case class IndexedFastaFile(sc: SparkContext,
           throw e
         } else {
           if (stringency == ValidationStringency.LENIENT) {
-            log.warn("Caught exception %s when loading FASTA sequence dictionary. Using empty dictionary instead.".format(e))
+            warn("Caught exception %s when loading FASTA sequence dictionary. Using empty dictionary instead.".format(e))
           }
           SequenceDictionary.empty
         }

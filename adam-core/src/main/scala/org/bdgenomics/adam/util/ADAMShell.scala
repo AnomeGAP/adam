@@ -17,38 +17,36 @@
  */
 package org.bdgenomics.adam.util
 
-import java.io.{ StringWriter, PrintWriter }
 import htsjdk.variant.vcf.{
   VCFFormatHeaderLine,
   VCFInfoHeaderLine,
   VCFFilterHeaderLine,
   VCFHeaderLine
 }
-import org.apache.spark.SparkContext
-import org.bdgenomics.adam.models.VariantContext
-import org.bdgenomics.adam.rdd.feature.FeatureDataset
-import org.bdgenomics.adam.rdd.read.AlignmentRecordDataset
-import org.bdgenomics.adam.rdd.variant.{
+import org.bdgenomics.adam.ds.feature.FeatureDataset
+import org.bdgenomics.adam.ds.read.{ AlignmentDataset, ReadDataset }
+import org.bdgenomics.adam.ds.sequence.{ SequenceDataset, SliceDataset }
+import org.bdgenomics.adam.ds.variant.{
   GenotypeDataset,
-  VariantDataset,
-  VariantContextDataset
+  VariantDataset
 }
 import org.bdgenomics.formats.avro.{
-  AlignmentRecord,
+  Alignment,
   Feature,
   Genotype,
+  Read,
   Sample,
+  Sequence,
+  Slice,
   Variant
 }
-import org.bdgenomics.utils.instrumentation.MetricsListener
-import org.bdgenomics.utils.instrumentation._
 
 /**
  * Utility methods for use in adam-shell.
  */
 object ADAMShell {
 
-  /** Alignment record headers. */
+  /** Alignment headers. */
   val alignmentHeaders = Array(
     new ASCIITableHeader("Reference Name"),
     new ASCIITableHeader("Start"),
@@ -59,13 +57,13 @@ object ADAMShell {
   )
 
   /**
-   * Print attribute values for alignment records in the specified AlignmentRecordDataset up to the limit.
+   * Print attribute values for alignments in the specified AlignmentDataset up to the limit.
    *
-   * @param alignments AlignmentRecordDataset.
-   * @param keys Sequence of attribute keys.
-   * @param limit Number of alignment records to print attribute values for. Defaults to 10.
+   * @param alignments AlignmentDataset.
+   * @param keys Sequence of attribute keys. Defaults to empty.
+   * @param limit Number of alignments to print attribute values for. Defaults to 10.
    */
-  def printAlignmentAttributes(alignments: AlignmentRecordDataset, keys: Seq[String], limit: Int = 10): Unit = {
+  def printAlignmentAttributes(alignments: AlignmentDataset, keys: Seq[String] = Seq.empty, limit: Int = 10): Unit = {
     printAlignmentAttributes(alignments.rdd.take(limit), keys)
   }
 
@@ -74,12 +72,12 @@ object ADAMShell {
   }
 
   /**
-   * Print attribute values for the specified alignment records.
+   * Print attribute values for the specified alignments.
    *
    * @param alignments Sequence of alignments.
    * @param keys Sequence of attribute keys.
    */
-  def printAlignmentAttributes(alignments: Seq[AlignmentRecord], keys: Seq[String]): Unit = {
+  def printAlignmentAttributes(alignments: Seq[Alignment], keys: Seq[String]): Unit = {
     val header = alignmentHeaders ++ keys.map(key => new ASCIITableHeader(key))
 
     val rows: Array[Array[String]] = alignments.map(a => Array[String](
@@ -110,17 +108,17 @@ object ADAMShell {
    * Print attribute values for features in the specified FeatureDataset up to the limit.
    *
    * @param features FeatureDataset.
-   * @param keys Sequence of attribute keys.
+   * @param keys Sequence of attribute keys. Defaults to empty.
    * @param limit Number of features to print attribute values for. Defaults to 10.
    */
-  def printFeatureAttributes(features: FeatureDataset, keys: Seq[String], limit: Int = 10): Unit = {
+  def printFeatureAttributes(features: FeatureDataset, keys: Seq[String] = Seq.empty, limit: Int = 10): Unit = {
     printFeatureAttributes(features.rdd.take(limit), keys)
   }
 
   /**
    * Print attribute values for the specified features.
    *
-   * @param alignments Sequence of features.
+   * @param features Sequence of features.
    * @param keys Sequence of attribute keys.
    */
   def printFeatureAttributes(features: Seq[Feature], keys: Seq[String]): Unit = {
@@ -144,10 +142,10 @@ object ADAMShell {
    * Print VCF FORMAT field attributes for genotypes in the specified GenotypeDataset up to the limit.
    *
    * @param genotypes GenotypeDataset.
-   * @param keys Sequence of VCF FORMAT field attribute keys.
+   * @param keys Sequence of VCF FORMAT field attribute keys. Defaults to empty.
    * @param limit Number of genotypes to print VCF FORMAT field attribute values for. Defaults to 10.
    */
-  def printFormatFields(genotypes: GenotypeDataset, keys: Seq[String], limit: Int = 10): Unit = {
+  def printFormatFields(genotypes: GenotypeDataset, keys: Seq[String] = Seq.empty, limit: Int = 10): Unit = {
     printFormatFields(genotypes.rdd.take(limit), keys, genotypes.headerLines)
   }
 
@@ -156,9 +154,9 @@ object ADAMShell {
     new ASCIITableHeader("Reference Name"),
     new ASCIITableHeader("Start"),
     new ASCIITableHeader("End"),
-    new ASCIITableHeader("Ref", Alignment.Left),
-    new ASCIITableHeader("Alt", Alignment.Left),
-    new ASCIITableHeader("Alleles", Alignment.Center),
+    new ASCIITableHeader("Ref", TextAlignment.Left),
+    new ASCIITableHeader("Alt", TextAlignment.Left),
+    new ASCIITableHeader("Alleles", TextAlignment.Center),
     new ASCIITableHeader("Sample")
   )
 
@@ -230,13 +228,51 @@ object ADAMShell {
     println("\nGenotype Filters\n" + new ASCIITable(header, rows).toString)
   }
 
+  /** Read headers. */
+  val readHeaders = Array(
+    new ASCIITableHeader("Name"),
+    new ASCIITableHeader("Description"),
+    new ASCIITableHeader("Alphabet"),
+    new ASCIITableHeader("Length")
+  )
+
+  /**
+   * Print attribute values for reads in the specified ReadDataset up to the limit.
+   *
+   * @param reads ReadDataset.
+   * @param keys Sequence of attribute keys. Defaults to empty.
+   * @param limit Number of reads to print attribute values for. Defaults to 10.
+   */
+  def printReadAttributes(reads: ReadDataset, keys: Seq[String] = Seq.empty, limit: Int = 10): Unit = {
+    printReadAttributes(reads.rdd.take(limit), keys)
+  }
+
+  /**
+   * Print attribute values for the specified reads.
+   *
+   * @param reads Sequence of reads.
+   * @param keys Sequence of attribute keys.
+   */
+  def printReadAttributes(reads: Seq[Read], keys: Seq[String]): Unit = {
+    val header = readHeaders ++ keys.map(key => new ASCIITableHeader(key))
+
+    val rows: Array[Array[String]] = reads.map(r => Array[String](
+      Option(r.getName()).getOrElse(""),
+      Option(r.getDescription()).getOrElse(""),
+      Option(r.getAlphabet()).fold("")(_.toString),
+      Option(r.getLength()).fold("")(_.toString)
+    ) ++ keys.map(key => Option(r.getAttributes().get(key)).getOrElse(""))).toArray
+
+    println("\nRead Attributes\n" + new ASCIITable(header, rows).toString)
+  }
+
   /**
    * Print attribute values for the specified samples.
    *
    * @param samples Sequence of samples.
-   * @param keys Sequence of attribute keys.
+   * @param keys Sequence of attribute keys. Defaults to empty.
    */
-  def printSampleAttributes(samples: Seq[Sample], keys: Seq[String]): Unit = {
+  def printSampleAttributes(samples: Seq[Sample], keys: Seq[String] = Seq.empty): Unit = {
     val header = Array(
       new ASCIITableHeader("Identifier"),
       new ASCIITableHeader("Name")
@@ -248,6 +284,94 @@ object ADAMShell {
     ) ++ keys.map(key => Option(s.getAttributes().get(key)).getOrElse("")) ++ Array(Option(s.getProcessingSteps().toString).getOrElse(""))).toArray
 
     println("\nSample Attributes\n" + new ASCIITable(header, rows).toString)
+  }
+
+  /** Sequence headers. */
+  val sequenceHeaders = Array(
+    new ASCIITableHeader("Name"),
+    new ASCIITableHeader("Description"),
+    new ASCIITableHeader("Alphabet"),
+    new ASCIITableHeader("Length")
+  )
+
+  /**
+   * Print attribute values for sequences in the specified SequenceDataset up to the limit.
+   *
+   * @param sequences SequenceDataset.
+   * @param keys Sequence of attribute keys. Defaults to empty.
+   * @param limit Number of sequences to print attribute values for. Defaults to 10.
+   */
+  def printSequenceAttributes(sequences: SequenceDataset, keys: Seq[String] = Seq.empty, limit: Int = 10): Unit = {
+    printSequenceAttributes(sequences.rdd.take(limit), keys)
+  }
+
+  /**
+   * Print attribute values for the specified sequences.
+   *
+   * @param sequences Sequence of sequences.
+   * @param keys Sequence of attribute keys.
+   */
+  def printSequenceAttributes(sequences: Seq[Sequence], keys: Seq[String]): Unit = {
+    val header = sequenceHeaders ++ keys.map(key => new ASCIITableHeader(key))
+
+    val rows: Array[Array[String]] = sequences.map(s => Array[String](
+      Option(s.getName()).getOrElse(""),
+      Option(s.getDescription()).getOrElse(""),
+      Option(s.getAlphabet()).fold("")(_.toString),
+      Option(s.getLength()).fold("")(_.toString)
+    ) ++ keys.map(key => Option(s.getAttributes().get(key)).getOrElse(""))).toArray
+
+    println("\nSequence Attributes\n" + new ASCIITable(header, rows).toString)
+  }
+
+  /** Slice headers. */
+  val sliceHeaders = Array(
+    new ASCIITableHeader("Name"),
+    new ASCIITableHeader("Description"),
+    new ASCIITableHeader("Alphabet"),
+    new ASCIITableHeader("Start"),
+    new ASCIITableHeader("End"),
+    new ASCIITableHeader("Strand"),
+    new ASCIITableHeader("Length"),
+    new ASCIITableHeader("Total length"),
+    new ASCIITableHeader("Index"),
+    new ASCIITableHeader("Slices")
+  )
+
+  /**
+   * Print attribute values for slices in the specified SliceDataset up to the limit.
+   *
+   * @param slices SliceDataset.
+   * @param keys Sequence of attribute keys. Defaults to empty.
+   * @param limit Number of slices to print attribute values for. Defaults to 10.
+   */
+  def printSliceAttributes(slices: SliceDataset, keys: Seq[String] = Seq.empty, limit: Int = 10): Unit = {
+    printSliceAttributes(slices.rdd.take(limit), keys)
+  }
+
+  /**
+   * Print attribute values for the specified slices.
+   *
+   * @param slices Sequence of slices.
+   * @param keys Sequence of attribute keys.
+   */
+  def printSliceAttributes(slices: Seq[Slice], keys: Seq[String]): Unit = {
+    val header = sliceHeaders ++ keys.map(key => new ASCIITableHeader(key))
+
+    val rows: Array[Array[String]] = slices.map(s => Array[String](
+      Option(s.getName()).getOrElse(""),
+      Option(s.getDescription()).getOrElse(""),
+      Option(s.getAlphabet()).fold("")(_.toString),
+      Option(s.getStart()).fold("")(_.toString),
+      Option(s.getEnd()).fold("")(_.toString),
+      Option(s.getStrand()).fold("")(_.toString),
+      Option(s.getLength()).fold("")(_.toString),
+      Option(s.getTotalLength()).fold("")(_.toString),
+      Option(s.getIndex()).fold("")(_.toString),
+      Option(s.getSlices()).fold("")(_.toString)
+    ) ++ keys.map(key => Option(s.getAttributes().get(key)).getOrElse(""))).toArray
+
+    println("\nSlice Attributes\n" + new ASCIITable(header, rows).toString)
   }
 
   /**
@@ -265,8 +389,8 @@ object ADAMShell {
     new ASCIITableHeader("Reference Name"),
     new ASCIITableHeader("Start"),
     new ASCIITableHeader("End"),
-    new ASCIITableHeader("Ref", Alignment.Left),
-    new ASCIITableHeader("Alt", Alignment.Left)
+    new ASCIITableHeader("Ref", TextAlignment.Left),
+    new ASCIITableHeader("Alt", TextAlignment.Left)
   )
 
   /**
@@ -303,10 +427,10 @@ object ADAMShell {
    * Print VCF INFO field attributes for variants in the specified VariantDataset up to the limit.
    *
    * @param variants VariantDataset.
-   * @param keys Sequence of VCF INFO field attribute keys.
+   * @param keys Sequence of VCF INFO field attribute keys. Defaults to empty.
    * @param limit Number of variants to print VCF INFO field attribute values for. Defaults to 10.
    */
-  def printInfoFields(variants: VariantDataset, keys: Seq[String], limit: Int = 10): Unit = {
+  def printInfoFields(variants: VariantDataset, keys: Seq[String] = Seq.empty, limit: Int = 10): Unit = {
     printInfoFields(variants.rdd.take(limit), keys, variants.headerLines)
   }
 
@@ -314,7 +438,7 @@ object ADAMShell {
    * Print VCF INFO field attributes for the specified variants.
    *
    * @param variants Sequence of variants.
-   * @param keys Sequence of VCF INFO field attribute keys.
+   * @param keys Sequence of VCF INFO field attribute keys. Defaults to empty.
    * @param headerLines Sequence of VCF header lines.
    */
   def printInfoFields(variants: Seq[Variant], keys: Seq[String], headerLines: Seq[VCFHeaderLine]): Unit = {
@@ -332,52 +456,5 @@ object ADAMShell {
     ) ++ keys.map(key => Option(v.getAnnotation().getAttributes().get(key)).getOrElse(""))).toArray
 
     println("\nVariant Info Fields\n" + new ASCIITable(header, rows).toString)
-  }
-
-  /**
-   * Create and return a new metrics listener for the specified Spark context.
-   *
-   * @param sc Spark context.
-   * @return Return a new metrics listener for the specified Spark context.
-   */
-  def createMetricsListener(sc: SparkContext): MetricsListener = {
-    val metricsListener = new MetricsListener(new RecordedMetrics())
-    sc.addSparkListener(metricsListener)
-    Metrics.initialize(sc)
-    metricsListener
-  }
-
-  /**
-   * Print metrics gathered by the specified metrics listener.
-   *
-   * @param metricsListener Metrics listener.
-   */
-  def printMetrics(metricsListener: MetricsListener): Unit = printMetrics(None, metricsListener)
-
-  /**
-   * Print metrics gathered by the specified metrics listener.
-   *
-   * @param totalTime Total execution time, in ns.
-   * @param metricsListener Metrics listener.
-   */
-  def printMetrics(totalTime: Long, metricsListener: MetricsListener): Unit = printMetrics(Some(totalTime), metricsListener)
-
-  /**
-   * Print metrics gathered by the specified metrics listener.
-   *
-   * @param optTotalTime Optional total execution time, in ns.
-   * @param metricsListener Metrics listener.
-   */
-  private def printMetrics(optTotalTime: Option[Long], metricsListener: MetricsListener): Unit = {
-    val stringWriter = new StringWriter()
-    val out = new PrintWriter(stringWriter)
-    optTotalTime.foreach(t => out.println("Overall Duration: " + DurationFormatting.formatNanosecondDuration(t)))
-    out.println("Metrics:")
-    out.println()
-    Metrics.print(out, Some(metricsListener.metrics.sparkMetrics.stageTimes))
-    out.println()
-    metricsListener.metrics.sparkMetrics.print(out)
-    out.flush()
-    println(stringWriter.getBuffer.toString)
   }
 }

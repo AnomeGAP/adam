@@ -9,8 +9,8 @@
 
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.bdgenomics.adam</groupId>
-  <artifactId>adam-parent-spark2_2.11</artifactId>
-  <version>0.26.0</version>
+  <artifactId>adam-parent-spark3_2.12</artifactId>
+  <version>0.35.0</version>
   <packaging>pom</packaging>
   <name>ADAM_${scala.version.prefix}</name>
   <description>A fast, scalable genome analysis system</description>
@@ -19,21 +19,22 @@
   <properties>
     <java.version>1.8</java.version>
     <avro.version>1.8.2</avro.version>
-    <scala.version>2.11.12</scala.version>
-    <scala.version.prefix>2.11</scala.version.prefix>
-    <spark.version>2.3.3</spark.version>
-    <parquet.version>1.8.3</parquet.version>
-    <!-- Edit the following line to configure the Hadoop (HDFS) version. -->
-    <hadoop.version>2.7.5</hadoop.version>
+    <scala.version>2.12.10</scala.version>
+    <scala.version.prefix>2.12</scala.version.prefix>
+    <spark.version>3.0.2</spark.version>
+    <parquet.version>1.10.1</parquet.version>
+    <hadoop.version>3.2.1</hadoop.version>
     <hadoop-bam.version>7.9.2</hadoop-bam.version>
-    <slf4j.version>1.7.25</slf4j.version>
-    <bdg-formats.version>0.12.0</bdg-formats.version>
-    <bdg-utils.version>0.2.13</bdg-utils.version>
-    <htsjdk.version>2.16.1</htsjdk.version>
+    <slf4j.version>1.7.30</slf4j.version>
+    <bdg-formats.version>0.15.0</bdg-formats.version>
+    <bdg-utils.version>0.3.0</bdg-utils.version>
+    <grizzled-slf4j.version>1.3.4</grizzled-slf4j.version>
+    <htsjdk.version>2.19.0</htsjdk.version>
     <scoverage.plugin.version>1.1.1</scoverage.plugin.version>
   </properties>
 
   <modules>
+    <module>adam-shade</module>
     <module>adam-codegen</module>
     <module>adam-core</module>
     <module>adam-apis</module>
@@ -56,12 +57,9 @@
   </scm>
   <developers>
     <developer>
-      <id>massie</id>
-      <name>Matt Massie</name>
-      <email>massie@cs.berkeley.edu</email>
-      <url>http://www.cs.berkeley.edu/~massie</url>
-      <organization>U.C. Berkeley Computer Science</organization>
-      <organizationUrl>http://www.cs.berkeley.edu/</organizationUrl>
+      <id>heuermh</id>
+      <name>Michael L Heuer</name>
+      <organization>University of California Berkeley</organization>
     </developer>
   </developers>
   <issueManagement>
@@ -85,12 +83,12 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-assembly-plugin</artifactId>
-          <version>3.1.0</version>
+          <version>3.2.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-javadoc-plugin</artifactId>
-          <version>3.0.1</version>
+          <version>3.1.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -134,12 +132,12 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-deploy-plugin</artifactId>
-          <version>2.8.2</version>
+          <version>3.0.0-M1</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-enforcer-plugin</artifactId>
-          <version>1.4.1</version>
+          <version>3.0.0-M2</version>
           <executions>
             <execution>
               <id>enforce-versions</id>
@@ -149,8 +147,8 @@
               <configuration>
                 <rules>
                   <requireMavenVersion>
-                    <version>[3.1.1,)</version>
-                    <message>ADAM requires Maven 3.1.1 or greater</message>
+                    <version>[3.3.9,)</version>
+                    <message>ADAM requires Maven 3.3.9 or greater</message>
                   </requireMavenVersion>
                   <requireJavaVersion>
                     <version>[1.8,)</version>
@@ -164,17 +162,17 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-install-plugin</artifactId>
-          <version>2.5.2</version>
+          <version>3.0.0-M1</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-jar-plugin</artifactId>
-          <version>3.1.0</version>
+          <version>3.2.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-resources-plugin</artifactId>
-          <version>3.0.1</version>
+          <version>3.1.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -184,12 +182,12 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-source-plugin</artifactId>
-          <version>3.0.1</version>
+          <version>3.2.0</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
-          <version>2.22.1</version>
+          <version>3.0.0-M3</version>
         </plugin>
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
@@ -199,7 +197,7 @@
         <plugin>
           <groupId>org.scalatest</groupId>
           <artifactId>scalatest-maven-plugin</artifactId>
-          <version>1.0</version>
+          <version>2.0.0</version>
         </plugin>
         <plugin>
           <groupId>pl.project13.maven</groupId>
@@ -292,7 +290,6 @@
           <useZincServer>true</useZincServer>
           <args>
             <arg>-unchecked</arg>
-            <arg>-optimise</arg>
             <arg>-deprecation</arg>
           </args>
           <jvmArgs>
@@ -355,40 +352,39 @@
         <groupId>org.scala-lang</groupId>
         <artifactId>scala-library</artifactId>
         <version>${scala.version}</version>
-        <scope>provided</scope>
       </dependency>
       <dependency>
         <groupId>org.bdgenomics.adam</groupId>
-        <artifactId>adam-core-spark2_${scala.version.prefix}</artifactId>
+        <artifactId>adam-core-spark3_${scala.version.prefix}</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.bdgenomics.adam</groupId>
-        <artifactId>adam-core-spark2_${scala.version.prefix}</artifactId>
+        <artifactId>adam-core-spark3_${scala.version.prefix}</artifactId>
         <version>${project.version}</version>
         <type>test-jar</type>
         <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>org.bdgenomics.adam</groupId>
-        <artifactId>adam-cli-spark2_${scala.version.prefix}</artifactId>
+        <artifactId>adam-cli-spark3_${scala.version.prefix}</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.bdgenomics.adam</groupId>
-        <artifactId>adam-apis-spark2_${scala.version.prefix}</artifactId>
+        <artifactId>adam-apis-spark3_${scala.version.prefix}</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.bdgenomics.adam</groupId>
-        <artifactId>adam-apis-spark2_${scala.version.prefix}</artifactId>
+        <artifactId>adam-apis-spark3_${scala.version.prefix}</artifactId>
         <version>${project.version}</version>
         <type>test-jar</type>
         <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>org.bdgenomics.utils</groupId>
-        <artifactId>utils-misc-spark2_${scala.version.prefix}</artifactId>
+        <artifactId>utils-misc-spark3_${scala.version.prefix}</artifactId>
         <version>${bdg-utils.version}</version>
         <type>test-jar</type>
         <scope>test</scope>
@@ -401,7 +397,7 @@
       </dependency>
       <dependency>
         <groupId>org.bdgenomics.utils</groupId>
-        <artifactId>utils-misc-spark2_${scala.version.prefix}</artifactId>
+        <artifactId>utils-misc-spark3_${scala.version.prefix}</artifactId>
         <version>${bdg-utils.version}</version>
          <exclusions>
           <exclusion>
@@ -412,17 +408,17 @@
       </dependency>
       <dependency>
         <groupId>org.bdgenomics.utils</groupId>
-        <artifactId>utils-cli-spark2_${scala.version.prefix}</artifactId>
+        <artifactId>utils-cli-spark3_${scala.version.prefix}</artifactId>
         <version>${bdg-utils.version}</version>
       </dependency>
       <dependency>
         <groupId>org.bdgenomics.utils</groupId>
-        <artifactId>utils-intervalrdd-spark2_${scala.version.prefix}</artifactId>
+        <artifactId>utils-intervalrdd-spark3_${scala.version.prefix}</artifactId>
         <version>${bdg-utils.version}</version>
       </dependency>
       <dependency>
         <groupId>org.bdgenomics.utils</groupId>
-        <artifactId>utils-io-spark2_${scala.version.prefix}</artifactId>
+        <artifactId>utils-io-spark3_${scala.version.prefix}</artifactId>
         <version>${bdg-utils.version}</version>
         <exclusions>
           <exclusion>
@@ -430,11 +426,6 @@
             <artifactId>*</artifactId>
           </exclusion>
         </exclusions>
-      </dependency>
-      <dependency>
-        <groupId>org.bdgenomics.utils</groupId>
-        <artifactId>utils-metrics-spark2_${scala.version.prefix}</artifactId>
-        <version>${bdg-utils.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.hadoop</groupId>
@@ -515,34 +506,7 @@
       <dependency>
         <groupId>org.apache.parquet</groupId>
         <artifactId>parquet-avro</artifactId>
-        <!--
-            IMPORTANT NOTE
-            ==============
-            Spark 2.2.0 bumps to Parquet 1.8.2, but keeps Avro at 1.7.3. This
-            causes an issue when using parquet-avro 1.8.2, which relies on a
-            method that is new in Avro 1.8.x. The recommended workaround is to
-            pin parquet-avro to 1.8.1, instead of 1.8.2, as described in the
-            Spark 2.2.0 release notes.
-        -->
-        <version>1.8.1</version>
-        <exclusions>
-          <exclusion>
-            <groupId>org.apache.parquet</groupId>
-            <artifactId>*</artifactId>
-          </exclusion>
-        </exclusions>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.parquet</groupId>
-        <!-- This library has no Scala 2.11 version, but using the 2 dot 10 version seems to work. -->
-        <artifactId>parquet-scala_2.10</artifactId>
         <version>${parquet.version}</version>
-        <exclusions>
-          <exclusion>
-            <groupId>org.scala-lang</groupId>
-            <artifactId>scala-library</artifactId>
-          </exclusion>
-        </exclusions>
       </dependency>
       <dependency>
         <groupId>org.seqdoop</groupId>
@@ -563,13 +527,18 @@
       <dependency>
         <groupId>args4j</groupId>
         <artifactId>args4j</artifactId>
-        <version>2.0.31</version> <!-- note: version 2.32 is not binary compatible -->
+        <version>2.33</version>
       </dependency>
       <dependency>
         <groupId>org.scalatest</groupId>
         <artifactId>scalatest_${scala.version.prefix}</artifactId>
-        <version>2.2.6</version>
+        <version>3.0.7</version>
         <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.clapper</groupId>
+        <artifactId>grizzled-slf4j_${scala.version.prefix}</artifactId>
+        <version>${grizzled-slf4j.version}</version>
       </dependency>
       <dependency>
         <groupId>org.slf4j</groupId>
@@ -594,7 +563,7 @@
       <dependency>
         <groupId>org.apache.httpcomponents</groupId>
         <artifactId>httpclient</artifactId>
-        <version>4.5.2</version>
+        <version>4.5.7</version>
       </dependency>
      <dependency>
         <groupId>com.google.guava</groupId>
@@ -604,7 +573,7 @@
       <dependency>
         <groupId>org.mockito</groupId>
         <artifactId>mockito-core</artifactId>
-        <version>2.23.0</version>
+        <version>2.25.1</version>
         <scope>test</scope>
       </dependency>
       <dependency>
@@ -614,8 +583,13 @@
       </dependency>
       <dependency>
         <groupId>org.bdgenomics.adam</groupId>
-        <artifactId>adam-codegen-spark2_${scala.version.prefix}</artifactId>
+        <artifactId>adam-codegen-spark3_${scala.version.prefix}</artifactId>
         <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.thoughtworks.paranamer</groupId>
+        <artifactId>paranamer</artifactId>
+        <version>2.8</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -672,10 +646,10 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-javadoc-plugin</artifactId>
-            <version>3.0.1</version>
+            <version>3.1.0</version>
             <executions>
               <execution>
-                <id>attach-javadocs</id>
+                <id>attach-javadoc</id>
                 <phase>package</phase>
                 <goals>
                   <goal>jar</goal>

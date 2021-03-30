@@ -1,12 +1,12 @@
 package org.bdgenomics.adam.cli
 
-import org.bdgenomics.formats.avro.AlignmentRecord
+import org.bdgenomics.formats.avro.Alignment
 
 class AtgxReadsRandNucAssigner {
   /**
    * do random nucleotide assignment to N base of input sequence
    */
-  def assign(iter: Iterator[AlignmentRecord]): Iterator[AlignmentRecord] = {
+  def assign(iter: Iterator[Alignment]): Iterator[Alignment] = {
     val alphabet = Array[Char]('A', 'C', 'G', 'T')
     val randGen = scala.util.Random
 

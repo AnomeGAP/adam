@@ -17,7 +17,7 @@
  */
 package org.bdgenomics.adam.cli
 
-import org.bdgenomics.adam.rdd.ADAMContext._
+import org.bdgenomics.adam.ds.ADAMContext._
 import org.bdgenomics.adam.util.ADAMFunSuite
 
 class TransformAlignmentsSuite extends ADAMFunSuite {
@@ -33,7 +33,7 @@ class TransformAlignmentsSuite extends ADAMFunSuite {
     val inputPath = copyResource("unordered.sam")
     val actualPath = tmpFile("ordered.sam")
     val expectedPath = copyResource("ordered.sam")
-    TransformAlignments(Array("-single", "-disable_pg", "-sort_reads", "-sort_lexicographically", inputPath, actualPath)).run(sc)
+    TransformAlignments(Array("-single", "-disable_pg", "-sort_by_reference_position", inputPath, actualPath)).run(sc)
     checkFiles(expectedPath, actualPath)
   }
 
@@ -53,7 +53,7 @@ class TransformAlignmentsSuite extends ADAMFunSuite {
     val actualPath = tmpFile("ordered.sam")
     val expectedPath = copyResource("ordered.sam")
     TransformAlignments(Array("-disable_pg", inputPath, intermediateAdamPath)).run(sc)
-    TransformAlignments(Array("-single", "-disable_pg", "-sort_reads", "-sort_lexicographically", intermediateAdamPath, actualPath)).run(sc)
+    TransformAlignments(Array("-single", "-disable_pg", "-sort_by_reference_position", intermediateAdamPath, actualPath)).run(sc)
     checkFiles(expectedPath, actualPath)
   }
 
@@ -63,7 +63,7 @@ class TransformAlignmentsSuite extends ADAMFunSuite {
     TransformAlignments(Array(inputPath, finalPath, "-bin_quality_scores", "0,20,10;20,40,30;40,60,50")).run(sc)
     val qualityScoreCounts = sc.loadAlignments(finalPath)
       .rdd
-      .flatMap(_.getQuality)
+      .flatMap(_.getQualityScores)
       .map(s => s.toInt - 33)
       .countByValue
 

@@ -1,11 +1,11 @@
 package org.bdgenomics.adam.cli
 
-import org.bdgenomics.formats.avro.AlignmentRecord
+import org.bdgenomics.formats.avro.Alignment
 
 import scala.annotation.tailrec
 
 class AtgxReadsNucTrimmer {
-  def trimHead(iter: Iterator[AlignmentRecord], tenX: Boolean, minLen: Int): Iterator[AlignmentRecord] = {
+  def trimHead(iter: Iterator[Alignment], tenX: Boolean, minLen: Int): Iterator[Alignment] = {
     iter.map { record =>
       val name = record.getReadName
       val (_, iw) = AtgxReadsInfoParser.parseFromName(name)
@@ -21,7 +21,7 @@ class AtgxReadsNucTrimmer {
     }
   }
 
-  def trimTail(iter: Iterator[AlignmentRecord], minLen: Int): Iterator[AlignmentRecord] = {
+  def trimTail(iter: Iterator[Alignment], minLen: Int): Iterator[Alignment] = {
     iter.map(trimTailN)
       .filter { i =>
         val seq = i.getSequence
@@ -29,7 +29,7 @@ class AtgxReadsNucTrimmer {
       }
   }
 
-  def trimBoth(iter: Iterator[AlignmentRecord], tenX: Boolean, minLen: Int): Iterator[AlignmentRecord] = {
+  def trimBoth(iter: Iterator[Alignment], tenX: Boolean, minLen: Int): Iterator[Alignment] = {
     iter.map { record =>
       val name = record.getReadName
       val (_, iw) = AtgxReadsInfoParser.parseFromName(name)
@@ -45,25 +45,25 @@ class AtgxReadsNucTrimmer {
     }
   }
 
-  private def trimHeadN(record: AlignmentRecord): AlignmentRecord = {
+  private def trimHeadN(record: Alignment): Alignment = {
     val seq = record.getSequence
     val trimmedSeq = trimH(seq)
     record.setSequence(trimmedSeq)
 
     val len = seq.length - trimmedSeq.length
-    val newQuality = record.getQuality.substring(len)
-    record.setQuality(newQuality)
+    val newQuality = record.getQualityScores.substring(len)
+    record.setQualityScores(newQuality)
 
     record
   }
 
-  private def trimTailN(record: AlignmentRecord): AlignmentRecord = {
+  private def trimTailN(record: Alignment): Alignment = {
     val seq = record.getSequence
     val trimmedSeq = trimT(seq)
     record.setSequence(trimmedSeq)
 
-    val newQuality = record.getQuality.substring(0, trimmedSeq.length)
-    record.setQuality(newQuality)
+    val newQuality = record.getQualityScores.substring(0, trimmedSeq.length)
+    record.setQualityScores(newQuality)
 
     record
   }
