@@ -192,6 +192,9 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   @Args4jOption(required = false, name = "-atgx_transform", usage = "Enable Atgenomix alignment transformation.")
   var atgxTransform = false
 
+  @Args4jOption(required = false, name = "-stop_sc", usage = "Option to Stop SparkContext or not.")
+  var stopSparkContext = false
+
   @Args4jOption(required = false, name = "-disable_sv_dup", usage = "Disable duplication of sv calling reads, soft-clip or discordantly.")
   var disableSVDup = false
 
@@ -711,19 +714,19 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
       // Paired-FASTQ loading is avoided here because that wouldn't make sense
       // given that it's already happening above.
       val concatOpt =
-      Option(args.concatFilename).map(concatFilename =>
-        if (args.forceLoadBam) {
-          sc.loadBam(concatFilename)
-        } else if (args.forceLoadIFastq) {
-          sc.loadInterleavedFastq(concatFilename)
-        } else if (args.forceLoadParquet) {
-          sc.loadParquetAlignments(concatFilename)
-        } else {
-          sc.loadAlignments(
-            concatFilename,
-            optReadGroup = Option(args.fastqReadGroup)
-          )
-        })
+        Option(args.concatFilename).map(concatFilename =>
+          if (args.forceLoadBam) {
+            sc.loadBam(concatFilename)
+          } else if (args.forceLoadIFastq) {
+            sc.loadInterleavedFastq(concatFilename)
+          } else if (args.forceLoadParquet) {
+            sc.loadParquetAlignments(concatFilename)
+          } else {
+            sc.loadAlignments(
+              concatFilename,
+              optReadGroup = Option(args.fastqReadGroup)
+            )
+          })
 
       // if we have a second rdd that we are merging in, process the merger here
       val (mergedRdd, mergedSd, mergedRgd, mergedPgs) = concatOpt.fold((rdd, sd, rgd, pgs))(t => {
@@ -908,7 +911,8 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
     } catch {
       case e: Exception => e.printStackTrace()
     } finally {
-      sc.stop
+      if (args.stopSparkContext)
+        sc.stop
     }
   }
 
