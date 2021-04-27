@@ -198,8 +198,7 @@ class AtgxBinSelect(input: String, output: String, fileFormat: String, hadoopCon
                                       regions: Array[String],
                                       partitionSize: Int,
                                       contigNames: Map[String, String],
-                                      posBinIndices: Map[String, Vector[(Int, Int)]]):
-  String = {
+                                      posBinIndices: Map[String, Vector[(Int, Int)]]): String = {
     regions
       .flatMap(v => {
         val items = v.split("[:-]")
