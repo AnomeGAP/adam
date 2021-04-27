@@ -8,56 +8,74 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.parquet.filter2.predicate.FilterApi.{and, userDefined}
 import org.apache.parquet.filter2.predicate.{FilterApi, FilterPredicate, Statistics, UserDefinedPredicate}
 import org.apache.spark.SparkContext
+import org.bdgenomics.adam.cli.BinSelect.BinSelect
 import org.bdgenomics.adam.ds.ADAMContext.sparkContextToADAMContext
 import org.bdgenomics.adam.ds.read.AlignmentDataset
 import org.bdgenomics.adam.models.{ReadGroup, ReadGroupDictionary, SequenceDictionary}
 import org.bdgenomics.formats.avro.{Alignment, ProcessingStep, Reference, ReadGroup => RecordGroupMetadata}
+import org.kohsuke.args4j.spi.{Messages, OneArgumentOptionHandler, Setter}
+import org.kohsuke.args4j.{CmdLineException, CmdLineParser, OptionDef}
 import org.seqdoop.hadoop_bam.SAMFormat
 
 import java.io.InputStream
 import java.util.concurrent.ForkJoinPool
+import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.reflect.ClassTag
+import scala.util.{Failure, Success, Try}
 
-class AtgxBinSelect extends Serializable {
+object AtgxBinSelect {
+  def runAgtxBinSelect(args: TransformAlignmentsArgs)(implicit sc: SparkContext): Unit = {
+    if (args.atgxBinSelect != BinSelect.None) {
+      val binSelect = new AtgxBinSelect(args.outputPath, args.bamOutputPath, args.fileFormat, sc.hadoopConfiguration)
+      args.atgxBinSelect match {
+        case BinSelect.All => binSelect.selectAll()
+        case BinSelect.Unmap => binSelect.selectUnmap()
+        case BinSelect.ScOrdisc => binSelect.selectScOrdisc()
+        case BinSelect.UnmapAndScOrdisc => binSelect.selectUnmapAndScOrdisc()
+        case BinSelect.Select => binSelect.select(args.dict, args.regions.asScala.toMap, args.bedAsRegions, args.poolSize)
+        case _ => throw new IllegalArgumentException("No such BinSelect type")
+      }
+    }
+  }
+}
+
+class AtgxBinSelect(input: String, output: String, fileFormat: String, hadoopConfig: Configuration) extends Serializable {
   val partitionSize: Int = 1000000
+  val (sd, rgd, pgs) = loadAvroDictionary(hadoopConfig, input)
+  val (ext, format) = getFileFormat(fileFormat, sd)
 
-  def selectAll(input: String, output: String, format: SAMFormat)(implicit sc: SparkContext): Unit = {
-    val (sd, rgd, pgs) = loadAvroDictionary(sc.hadoopConfiguration, input)
-    AlignmentDataset(sc.loadParquet[Alignment](fsWithPrefix("part-r-", input)), sd, rgd, pgs)
+  def selectAll()(implicit sc: SparkContext): Unit = {
+    val rdd = sc.loadParquet[Alignment](fsWithPrefix("part-r-", input))
+    AlignmentDataset(rdd, sd, rgd, pgs)
       .saveAsSam(output, asType = format, isSorted = true, asSingleFile = true)
   }
 
-  def selectUnmap(input: String)(implicit sc: SparkContext): Unit = {
+  def selectUnmap()(implicit sc: SparkContext): Unit = {
     val unmapPath = getUnmapPath(input)
-    sc.loadParquet[Alignment](unmapPath)
+    val rdd = sc.loadParquet[Alignment](unmapPath)
+    AlignmentDataset(rdd, sd, rgd, pgs)
+      .saveAsSam(output, asType = format, isSorted = true, asSingleFile = true)
   }
 
-  def selectScOrdisc(input: String)(implicit sc: SparkContext): Unit = {
-    sc.loadParquet[Alignment](fsWithPrefix("X-SOFTCLIP-OR-DISCORDANT", input))
+  def selectScOrdisc()(implicit sc: SparkContext): Unit = {
+    val rdd = sc.loadParquet[Alignment](fsWithPrefix("X-SOFTCLIP-OR-DISCORDANT", input))
+    AlignmentDataset(rdd, sd, rgd, pgs)
+      .saveAsSam(output, asType = format, isSorted = true, asSingleFile = true)
   }
 
-  def selectUnmapAndScOrdisc(input: String)(implicit sc: SparkContext): Unit = {
+  def selectUnmapAndScOrdisc()(implicit sc: SparkContext): Unit = {
     val unmapPath = getUnmapPath(input)
-    sc.loadParquet[Alignment](unmapPath  + "," + fsWithPrefix("X-SOFTCLIP-OR-DISCORDANT", input))
+    val rdd = sc.loadParquet[Alignment](unmapPath  + "," + fsWithPrefix("X-SOFTCLIP-OR-DISCORDANT", input))
+    AlignmentDataset(rdd, sd, rgd, pgs)
+      .saveAsSam(output, asType = format, isSorted = true, asSingleFile = true)
   }
 
-  def select(input: String,
-             dict: String,
-             fileFormat: String,
+  def select(dict: String,
              regions: Map[String, String],
              bedAsRegions: String,
-             poolSize: Int,
-             output: String)(implicit sc: SparkContext): Unit = {
-    val (sd, rgd, pgs) = loadAvroDictionary(sc.hadoopConfiguration, input)
+             poolSize: Int)(implicit sc: SparkContext): Unit = {
     val (_, _, _, posBinIndices) = mkPosBinIndices(sd)
-    val (ext, format) = if (fileFormat == "bam") {
-      ("bam", Some(SAMFormat.BAM))
-    } else if (fileFormat == "cram") {
-      ("cram", Some(SAMFormat.CRAM))
-    } else {
-      inferFromMD5(sd)
-    }
 
     // collect contigs from sequence dictionary
     val contigNames = sd.records.map(x => x.name.toLowerCase -> x.name).toMap
@@ -280,6 +298,16 @@ class AtgxBinSelect extends Serializable {
         })
         .groupBy(_._1)
         .mapValues(_.map(_._2)))
+  }
+
+  private def getFileFormat(fileFormat: String, sd: SequenceDictionary): (String, Option[SAMFormat]) = {
+    if (fileFormat == "bam") {
+      ("bam", Some(SAMFormat.BAM))
+    } else if (fileFormat == "cram") {
+      ("cram", Some(SAMFormat.CRAM))
+    } else {
+      inferFromMD5(sd)
+    }
   }
 
   /**
