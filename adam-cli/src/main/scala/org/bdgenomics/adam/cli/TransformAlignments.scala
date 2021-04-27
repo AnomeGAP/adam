@@ -311,7 +311,7 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   @Args4jOption(required = false, name = "-atgx_bin_select", handler = classOf[BinSelectSrcHandler], usage = "select type: All, Unmap, ScOrdisc, UnmapAndScOrdisc, Select")
   var atgxBinSelect = BinSelect.None
 
-  @Args4jOption(required = false, name = "-bam_output", usage = "BAM output path")
+  @Args4jOption(required = false, name = "-bam_output", usage = "specify BAM output path when run Adam & Bam select consecutively")
   var bamOutputPath: String = ""
 
   @Args4jOption(required = false, name = "-dict", usage = "dict path")
@@ -921,9 +921,9 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
 
         renameWithXPrefix(args.outputPath, dict)
 
-        AtgxBinSelect.runAgtxBinSelect(args)(sc)
+        AtgxBinSelect.runAgtxBinSelect(args.outputPath, args.bamOutputPath, args)(sc)
       } else if (args.atgxBinSelect != BinSelect.None) {
-        AtgxBinSelect.runAgtxBinSelect(args)(sc)
+        AtgxBinSelect.runAgtxBinSelect(args.inputPath, args.outputPath, args)(sc)
       } else if (args.partitionByStartPos) {
         if (outputDs.references.isEmpty) {
           warn("This dataset is not aligned and therefore will not benefit from being saved as a partitioned dataset")
