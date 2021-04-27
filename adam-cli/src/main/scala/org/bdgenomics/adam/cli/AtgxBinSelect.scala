@@ -339,3 +339,26 @@ class LowestFilter[T <: Comparable[T]](l: T) extends UserDefinedPredicate[T] wit
 
   override def keep(value: T): Boolean = value != null && (value.compareTo(l) >= 0)
 }
+
+object BinSelect extends  Enumeration {
+  type BinSelect = Value
+
+  val All: BinSelect.Value = Value("All")
+  val Unmap: BinSelect.Value = Value("Unmap")
+  val ScOrdisc: BinSelect.Value = Value("ScOrdisc")
+  val UnmapAndScOrdisc: BinSelect.Value = Value("UnmapAndScOrdisc")
+  val Select: BinSelect.Value = Value("Select")
+  val None: BinSelect.Value = Value("None")
+}
+
+class BinSelectSrcHandler(parser: CmdLineParser, option: OptionDef, setter: Setter[_ >: BinSelect])
+  extends OneArgumentOptionHandler[BinSelect](parser, option, setter) {
+
+  @throws[CmdLineException]
+  protected def parse(argument: String): BinSelect = {
+    Try(BinSelect.withName(argument)) match {
+      case Success(v) => v
+      case Failure(_) => throw new CmdLineException(owner, Messages.ILLEGAL_OPERAND, option.toString, argument)
+    }
+  }
+}

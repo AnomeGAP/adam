@@ -17,9 +17,6 @@
  */
 package org.bdgenomics.adam.cli
 
-import java.time.Instant
-import java.lang.{ Boolean => JBoolean }
-
 import grizzled.slf4j.Logging
 import htsjdk.samtools.ValidationStringency
 import org.apache.parquet.filter2.predicate.FilterApi
@@ -29,17 +26,21 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.bdgenomics.adam.algorithms.consensus._
+import org.bdgenomics.adam.cli.AtgxTransformAlignments.{mkPosBinIndices, renameWithXPrefix}
 import org.bdgenomics.adam.cli.FileSystemUtils._
-import org.bdgenomics.adam.io.FastqRecordReader
-import org.bdgenomics.adam.models.{ ReferenceRegion, SnpTable }
-import org.bdgenomics.adam.projections.{ AlignmentField, Filter }
 import org.bdgenomics.adam.ds.ADAMContext._
 import org.bdgenomics.adam.ds.ADAMSaveAnyArgs
-import org.bdgenomics.adam.ds.read.{ AlignmentDataset, QualityScoreBin }
-import org.bdgenomics.adam.rich.RichVariant
-import org.bdgenomics.formats.avro.{ Alignment, ProcessingStep }
+import org.bdgenomics.adam.ds.read.{AlignmentDataset, QualityScoreBin}
+import org.bdgenomics.adam.io.FastqRecordReader
+import org.bdgenomics.adam.models.{ReferenceRegion, SnpTable}
+import org.bdgenomics.adam.projections.{AlignmentField, Filter}
+import org.bdgenomics.formats.avro.{Alignment, ProcessingStep}
 import org.bdgenomics.utils.cli._
-import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
+import org.kohsuke.args4j.spi.MapOptionHandler
+import org.kohsuke.args4j.{Argument, Option => Args4jOption}
+
+import java.lang.{Boolean => JBoolean}
+import java.time.Instant
 
 object TransformAlignments extends BDGCommandCompanion {
   val commandName = "transformAlignments"
@@ -306,6 +307,27 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
 
   @Args4jOption(required = false, name = "-max_read_length", usage = "Maximum FASTQ read length, defaults to 10,000 base pairs (bp).")
   var maxReadLength: Int = 0
+
+  @Args4jOption(required = false, name = "-atgx_bin_select", handler = classOf[BinSelectSrcHandler], usage = "select type: All, Unmap, ScOrdisc, UnmapAndScOrdisc, Select")
+  var atgxBinSelect = BinSelect.None
+
+  @Args4jOption(required = false, name = "-bam_output", usage = "BAM output path")
+  var bamOutputPath: String = ""
+
+  @Args4jOption(required = false, name = "-dict", usage = "dict path")
+  var dict: String = ""
+
+  @Args4jOption(required = false, name = "-l", usage = "One line for each genomic region", handler = classOf[MapOptionHandler])
+  var regions: java.util.HashMap[String, String] = _
+
+  @Args4jOption(required = false, name = "-bed_region", usage = "use bed as region input")
+  var bedAsRegions: String = ""
+
+  @Args4jOption(required = false, name = "-file_format", usage = "File formats for saving, e.g., bam or cram")
+  var fileFormat: String = "bam"
+
+  @Args4jOption(required = false, name = "-pool-size", usage = "# of parallel task")
+  var poolSize: Int = 10
 
   var command: String = null
 }
@@ -886,7 +908,6 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           .save(args, isSorted = args.sortByReadName || args.sortByReferencePosition || args.sortByReferencePositionAndIndex)
         tenXBarcodeTrimmer.map(_.statistics())
       } else if (args.atgxTransform) {
-        import AtgxTransformAlignments._
         val disableSVDup = args.disableSVDup
         val dict = mkPosBinIndices(sd)
         val rdd = outputDs
@@ -899,6 +920,10 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
           .save(args, isSorted = args.sortByReadName || args.sortByReferencePosition || args.sortByReferencePositionAndIndex)
 
         renameWithXPrefix(args.outputPath, dict)
+
+        AtgxBinSelect.runAgtxBinSelect(args)(sc)
+      } else if (args.atgxBinSelect != BinSelect.None) {
+        AtgxBinSelect.runAgtxBinSelect(args)(sc)
       } else if (args.partitionByStartPos) {
         if (outputDs.references.isEmpty) {
           warn("This dataset is not aligned and therefore will not benefit from being saved as a partitioned dataset")
