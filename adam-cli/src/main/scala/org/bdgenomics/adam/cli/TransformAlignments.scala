@@ -26,20 +26,20 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.bdgenomics.adam.algorithms.consensus._
-import org.bdgenomics.adam.cli.AtgxTransformAlignments.{mkPosBinIndices, renameWithXPrefix}
+import org.bdgenomics.adam.cli.AtgxTransformAlignments.{ mkPosBinIndices, renameWithXPrefix }
 import org.bdgenomics.adam.cli.FileSystemUtils._
 import org.bdgenomics.adam.ds.ADAMContext._
 import org.bdgenomics.adam.ds.ADAMSaveAnyArgs
-import org.bdgenomics.adam.ds.read.{AlignmentDataset, QualityScoreBin}
+import org.bdgenomics.adam.ds.read.{ AlignmentDataset, QualityScoreBin }
 import org.bdgenomics.adam.io.FastqRecordReader
-import org.bdgenomics.adam.models.{ReferenceRegion, SnpTable}
-import org.bdgenomics.adam.projections.{AlignmentField, Filter}
-import org.bdgenomics.formats.avro.{Alignment, ProcessingStep}
+import org.bdgenomics.adam.models.{ ReferenceRegion, SnpTable }
+import org.bdgenomics.adam.projections.{ AlignmentField, Filter }
+import org.bdgenomics.formats.avro.{ Alignment, ProcessingStep }
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.spi.MapOptionHandler
-import org.kohsuke.args4j.{Argument, Option => Args4jOption}
+import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
 
-import java.lang.{Boolean => JBoolean}
+import java.lang.{ Boolean => JBoolean }
 import java.time.Instant
 
 object TransformAlignments extends BDGCommandCompanion {

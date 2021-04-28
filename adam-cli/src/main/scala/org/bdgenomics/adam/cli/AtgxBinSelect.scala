@@ -2,19 +2,19 @@ package org.bdgenomics.adam.cli
 
 import org.apache.avro.Schema
 import org.apache.avro.file.DataFileStream
-import org.apache.avro.specific.{SpecificDatumReader, SpecificRecordBase}
+import org.apache.avro.specific.{ SpecificDatumReader, SpecificRecordBase }
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.parquet.filter2.predicate.FilterApi.{and, userDefined}
-import org.apache.parquet.filter2.predicate.{FilterApi, FilterPredicate, Statistics, UserDefinedPredicate}
+import org.apache.hadoop.fs.{ FileSystem, Path }
+import org.apache.parquet.filter2.predicate.FilterApi.{ and, userDefined }
+import org.apache.parquet.filter2.predicate.{ FilterApi, FilterPredicate, Statistics, UserDefinedPredicate }
 import org.apache.spark.SparkContext
 import org.bdgenomics.adam.cli.BinSelect.BinSelect
 import org.bdgenomics.adam.ds.ADAMContext.sparkContextToADAMContext
 import org.bdgenomics.adam.ds.read.AlignmentDataset
-import org.bdgenomics.adam.models.{ReadGroup, ReadGroupDictionary, SequenceDictionary}
-import org.bdgenomics.formats.avro.{Alignment, ProcessingStep, Reference, ReadGroup => RecordGroupMetadata}
-import org.kohsuke.args4j.spi.{Messages, OneArgumentOptionHandler, Setter}
-import org.kohsuke.args4j.{CmdLineException, CmdLineParser, OptionDef}
+import org.bdgenomics.adam.models.{ ReadGroup, ReadGroupDictionary, SequenceDictionary }
+import org.bdgenomics.formats.avro.{ Alignment, ProcessingStep, Reference, ReadGroup => RecordGroupMetadata }
+import org.kohsuke.args4j.spi.{ Messages, OneArgumentOptionHandler, Setter }
+import org.kohsuke.args4j.{ CmdLineException, CmdLineParser, OptionDef }
 import org.seqdoop.hadoop_bam.SAMFormat
 
 import java.io.InputStream
@@ -22,18 +22,18 @@ import java.util.concurrent.ForkJoinPool
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.reflect.ClassTag
-import scala.util.{Failure, Success, Try}
+import scala.util.{ Failure, Success, Try }
 
 object AtgxBinSelect {
   def runAgtxBinSelect(input: String, output: String, args: TransformAlignmentsArgs)(implicit sc: SparkContext): Unit = {
     val binSelect = new AtgxBinSelect(input, output, args.fileFormat, sc.hadoopConfiguration)
     args.atgxBinSelect match {
-      case BinSelect.All => binSelect.selectAll()
-      case BinSelect.Unmap => binSelect.selectUnmap()
-      case BinSelect.ScOrdisc => binSelect.selectScOrdisc()
+      case BinSelect.All              => binSelect.selectAll()
+      case BinSelect.Unmap            => binSelect.selectUnmap()
+      case BinSelect.ScOrdisc         => binSelect.selectScOrdisc()
       case BinSelect.UnmapAndScOrdisc => binSelect.selectUnmapAndScOrdisc()
-      case BinSelect.Select => binSelect.select(args.dict, args.regions.asScala.toMap, args.bedAsRegions, args.poolSize)
-      case BinSelect.None => ()
+      case BinSelect.Select           => binSelect.select(args.dict, args.regions.asScala.toMap, args.bedAsRegions, args.poolSize)
+      case BinSelect.None             => ()
     }
   }
 }
@@ -67,7 +67,7 @@ class AtgxBinSelect(input: String, output: String, fileFormat: String, hadoopCon
   def selectUnmapAndScOrdisc()(implicit sc: SparkContext): Unit = {
     val (_, format) = getFileFormat(fileFormat, sd)
     val unmapPath = getUnmapPath(input)
-    val rdd = sc.loadParquet[Alignment](unmapPath  + "," + fsWithPrefix("X-SOFTCLIP-OR-DISCORDANT", input))
+    val rdd = sc.loadParquet[Alignment](unmapPath + "," + fsWithPrefix("X-SOFTCLIP-OR-DISCORDANT", input))
     AlignmentDataset(rdd, sd, rgd, pgs)
       .saveAsSam(output, asType = format, isSorted = true, asSingleFile = true)
   }
@@ -97,32 +97,31 @@ class AtgxBinSelect(input: String, output: String, fileFormat: String, hadoopCon
           .groupById()
     }
 
-    parallel_regions.foreach { case(k, v) =>
-      val regions =
-        if (bedAsRegions != "") {
-          part(k).toArray
-        }
-        else
-          v.split(",")
+    parallel_regions.foreach {
+      case (k, v) =>
+        val regions =
+          if (bedAsRegions != "") {
+            part(k).toArray
+          } else
+            v.split(",")
 
-      val files =
-        if (v.startsWith("X-")) {
-          fsWithPrefix(regions(0).split(":")(0), input)
-        } else {
-          collectParquetFileNames(input, regions, partitionSize, contigNames, posBinIndices)
-        }
+        val files =
+          if (v.startsWith("X-")) {
+            fsWithPrefix(regions(0).split(":")(0), input)
+          } else {
+            collectParquetFileNames(input, regions, partitionSize, contigNames, posBinIndices)
+          }
 
-      val preds = regions.flatMap(mkRegionPredicates).reduceOption(FilterApi.or)
-      val rdd = sc.loadParquet[Alignment](files, preds)
-      AlignmentDataset(rdd, sd, rgd, pgs)
-        .saveAsSam(mergePaths(output, ext, k + "." + ext),
-          asType = format, isSorted = true, asSingleFile = true)
+        val preds = regions.flatMap(mkRegionPredicates).reduceOption(FilterApi.or)
+        val rdd = sc.loadParquet[Alignment](files, preds)
+        AlignmentDataset(rdd, sd, rgd, pgs)
+          .saveAsSam(mergePaths(output, ext, k + "." + ext),
+            asType = format, isSorted = true, asSingleFile = true)
     }
     forkJoinPool.shutdown()
   }
 
-  private def loadAvro[T <: SpecificRecordBase](hadoopConfig: Configuration, filename: String, schema: Schema)
-                                               (implicit tTag: ClassTag[T]): Seq[T] = {
+  private def loadAvro[T <: SpecificRecordBase](hadoopConfig: Configuration, filename: String, schema: Schema)(implicit tTag: ClassTag[T]): Seq[T] = {
     // get our current file system
     val path = new Path(filename)
     val fs = path.getFileSystem(hadoopConfig)
@@ -184,8 +183,7 @@ class AtgxBinSelect(input: String, output: String, fileFormat: String, hadoopCon
     // region format => chr:100-200 or X-...
     if (region.startsWith("X-")) {
       None
-    }
-    else {
+    } else {
       val items = region.split("[:-]")
       val lowest: java.lang.Long = items(1).toLong
       val highest: java.lang.Long = items(2).toLong
@@ -232,8 +230,7 @@ class AtgxBinSelect(input: String, output: String, fileFormat: String, hadoopCon
             contigNames.getOrElse[String]("mt", lccontig)
           else
             contigNames.getOrElse[String](lccontig.substring(3), lccontig)
-        }
-        else {
+        } else {
           if (lccontig == "mt")
             contigNames.getOrElse[String]("chrm", lccontig)
           else
@@ -283,22 +280,22 @@ class AtgxBinSelect(input: String, output: String, fileFormat: String, hadoopCon
 
     (ordBinCount, unmapBinCount, scordisBinCount,
       (filteredContigNames ++ um ++ sc)
-        .flatMap(
-          x => {
-            val buf = scala.collection.mutable.ArrayBuffer.empty[String]
-            val t = x.split("=")
-            for (numberOfPosBin <- 0 to scala.math.floor(t(1).toLong / partitionSize).toInt) {
-              buf += t(0) + "@" + numberOfPosBin
-            }
-            buf
-          })
-        .zipWithIndex
-        .map(x => {
-          val y = x._1.split("@")
-          (y(0), (y(1).toInt, x._2))
+      .flatMap(
+        x => {
+          val buf = scala.collection.mutable.ArrayBuffer.empty[String]
+          val t = x.split("=")
+          for (numberOfPosBin <- 0 to scala.math.floor(t(1).toLong / partitionSize).toInt) {
+            buf += t(0) + "@" + numberOfPosBin
+          }
+          buf
         })
-        .groupBy(_._1)
-        .mapValues(_.map(_._2)))
+      .zipWithIndex
+      .map(x => {
+        val y = x._1.split("@")
+        (y(0), (y(1).toInt, x._2))
+      })
+      .groupBy(_._1)
+      .mapValues(_.map(_._2)))
   }
 
   private def getFileFormat(fileFormat: String, sd: SequenceDictionary): (String, Option[SAMFormat]) = {
@@ -341,7 +338,7 @@ class LowestFilter[T <: Comparable[T]](l: T) extends UserDefinedPredicate[T] wit
   override def keep(value: T): Boolean = value != null && (value.compareTo(l) >= 0)
 }
 
-object BinSelect extends  Enumeration {
+object BinSelect extends Enumeration {
   type BinSelect = Value
 
   val All: BinSelect.Value = Value("All")
@@ -353,7 +350,7 @@ object BinSelect extends  Enumeration {
 }
 
 class BinSelectSrcHandler(parser: CmdLineParser, option: OptionDef, setter: Setter[_ >: BinSelect])
-  extends OneArgumentOptionHandler[BinSelect](parser, option, setter) {
+    extends OneArgumentOptionHandler[BinSelect](parser, option, setter) {
 
   @throws[CmdLineException]
   protected def parse(argument: String): BinSelect = {

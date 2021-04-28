@@ -1,13 +1,12 @@
 package org.bdgenomics.adam.cli
 
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.fs.{ FileSystem, Path }
 import org.apache.spark.Partitioner
 
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.io.Source
 import scala.util.Sorting
-
 
 object GenomicPartitioner {
   val P_MULTIPLY = 10000000000000L
@@ -28,15 +27,12 @@ object GenomicPartitioner {
           if (r.length >= 5) {
             if (r(1).toInt - r(4).toInt < 0) {
               part.put(r(0), 0, r(2).toInt + r(4).toInt, r(3).toLong)
-            }
-            else {
+            } else {
               part.put(r(0), r(1).toInt - r(4).toInt, r(2).toInt + r(4).toInt, r(3).toLong)
             }
-          }
-          else if (r.length >= 4) {
+          } else if (r.length >= 4) {
             part.put(r(0), r(1).toInt, r(2).toInt, r(3).toLong)
-          }
-          else {
+          } else {
             part.put(r(0), r(1).toInt, r(2).toInt, auto)
             auto += 1
           }
@@ -85,7 +81,7 @@ class GenomicPartitioner extends Partitioner {
   def put(ctg: String, start: Int, end: Int, part: Long): Any = {
     intervals.get(ctg) match {
       case Some(a) => intervals.put(ctg, a :+ IntervalPair(Interval(start, end), part))
-      case None => intervals.put(ctg, Array(IntervalPair(Interval(start, end), part)))
+      case None    => intervals.put(ctg, Array(IntervalPair(Interval(start, end), part)))
     }
   }
 
@@ -107,7 +103,7 @@ class GenomicPartitioner extends Partitioner {
       .foreach(s => {
         s.split("\t").find(_.startsWith("SN:")) match {
           case Some(kv) => seqdict.put(kv.split(":")(1), id)
-          case None =>
+          case None     =>
         }
         id += 1
       })
@@ -127,45 +123,35 @@ class GenomicPartitioner extends Partitioner {
   }
 
   @tailrec
-  private def queryOrNone(p: Int, a: Array[IntervalPair], b: Int, e: Int):
-  Option[Long] = {
+  private def queryOrNone(p: Int, a: Array[IntervalPair], b: Int, e: Int): Option[Long] = {
     val m = (b + e) / 2
     if (b == e) {
       if (a(m).int.contains(p)) Some(a(m).part) else None
-    }
-    else if (a(m).int.contains(p)) {
+    } else if (a(m).int.contains(p)) {
       Some(a(m).part)
-    }
-    else if (a(m).int.lessthan(p)) {
+    } else if (a(m).int.lessthan(p)) {
       queryOrNone(p, a, m + 1, e)
-    }
-    else if (a(m).int.greaterthan(p)) {
+    } else if (a(m).int.greaterthan(p)) {
       queryOrNone(p, a, b, m - 1)
-    }
-    else {
+    } else {
       None
     }
   }
 
   @tailrec
-  private def queryMultiple(p: Int, a: Array[IntervalPair], b: Int, e: Int):
-  Option[Array[Long]] = {
+  private def queryMultiple(p: Int, a: Array[IntervalPair], b: Int, e: Int): Option[Array[Long]] = {
     val m = (b + e) / 2
     if (b >= e) {
       if (a(m).int.contains(p)) Some(Array(a(m).part)) else None
-    }
-    else if (a(m).int.contains(p)) {
+    } else if (a(m).int.contains(p)) {
       if (m > b && a(m - 1).int.contains(p)) Some(Array(a(m - 1).part, a(m).part))
       else if (m < e && a(m + 1).int.contains(p)) Some(Array(a(m).part, a(m + 1).part))
       else Some(Array(a(m).part))
-    }
-    else if (a(m).int.lessthan(p)) {
+    } else if (a(m).int.lessthan(p)) {
       queryMultiple(p, a, m + 1, e)
-    }
-    else if (a(m).int.greaterthan(p)) {
+    } else if (a(m).int.greaterthan(p)) {
       queryMultiple(p, a, b, m - 1)
-    }
-    else {
+    } else {
       None
     }
   }
@@ -182,8 +168,7 @@ class GenomicPartitioner extends Partitioner {
           case None => Array.empty
         }
       case None =>
-        def _keyify3(k: String):
-        Array[(Long, String)] = {
+        def _keyify3(k: String): Array[(Long, String)] = {
           intervals.get(k) match {
             case Some(a) =>
               queryMultiple(r._2.toInt, a, 0, a.length - 1) match {
@@ -198,8 +183,7 @@ class GenomicPartitioner extends Partitioner {
         if (c.startsWith("chr")) {
           if (c == "chrM") _keyify3("MT")
           else _keyify3(c.substring(3))
-        }
-        else {
+        } else {
           if (c == "MT") _keyify3("chrM")
           else _keyify3("chr" + c)
         }
