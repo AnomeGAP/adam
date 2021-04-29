@@ -319,7 +319,7 @@ class AtgxBinSelect(input: String, output: String, fileFormat: String, hadoopCon
     if (md5) ("cram", Some(SAMFormat.CRAM)) else ("bam", Some(SAMFormat.BAM))
   }
 
-  private def mergePaths(pathes: String*): String = java.nio.file.Paths.get("", pathes: _*).toString
+  private def mergePaths(pathes: String*): String = pathes.mkString("/")
 }
 
 class HighestFilter[T <: Comparable[T]](h: T) extends UserDefinedPredicate[T] with Serializable {
