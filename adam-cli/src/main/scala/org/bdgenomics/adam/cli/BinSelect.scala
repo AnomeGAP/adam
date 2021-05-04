@@ -24,8 +24,8 @@ class BinSelectArgs extends Args4jBase {
     usage = "Location to write selected BAM", index = 1)
   var outputPath: String = null
 
-  @Args4jOption(required = true, name = "-atgx_bin_select", handler = classOf[BinSelectSrcHandler], usage = "select type: All, Unmap, ScOrdisc, UnmapAndScOrdisc, Select")
-  var atgxBinSelect = BinSelectType.Select
+  @Args4jOption(required = true, name = "-select_type", handler = classOf[BinSelectSrcHandler], usage = "select type: All, Unmap, ScOrdisc, UnmapAndScOrdisc, Select")
+  var selectType = BinSelectType.Select
 
   @Args4jOption(required = true, name = "-dict", usage = "dict path")
   var dict: String = ""
@@ -50,7 +50,7 @@ class BinSelect(val args: BinSelectArgs)
 
   def run(sc: SparkContext) {
     val binSelect = new AtgxBinSelect(args.inputPath, args.outputPath, args.fileFormat, sc.hadoopConfiguration)
-    args.atgxBinSelect match {
+    args.selectType match {
       case BinSelectType.All              => binSelect.selectAll()(sc)
       case BinSelectType.Unmap            => binSelect.selectUnmap()(sc)
       case BinSelectType.ScOrdisc         => binSelect.selectScOrdisc()(sc)

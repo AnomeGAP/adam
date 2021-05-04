@@ -27,7 +27,7 @@ import scala.util.{Failure, Success, Try}
 object AtgxBinSelect {
   def runAgtxBinSelect(input: String, output: String, args: TransformAlignmentsArgs)(implicit sc: SparkContext): Unit = {
     val binSelect = new AtgxBinSelect(input, output, args.fileFormat, sc.hadoopConfiguration)
-    args.atgxBinSelect match {
+    args.selectType match {
       case BinSelectType.All              => binSelect.selectAll()
       case BinSelectType.Unmap            => binSelect.selectUnmap()
       case BinSelectType.ScOrdisc         => binSelect.selectScOrdisc()

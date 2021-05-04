@@ -309,16 +309,20 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   @Args4jOption(required = false, name = "-max_read_length", usage = "Maximum FASTQ read length, defaults to 10,000 base pairs (bp).")
   var maxReadLength: Int = 0
 
-  @Args4jOption(required = false, name = "-atgx_bin_select", handler = classOf[BinSelectSrcHandler], usage = "select type: All, Unmap, ScOrdisc, UnmapAndScOrdisc, Select")
-  var atgxBinSelect: BinSelectType = null
+  @Args4jOption(required = false, name = "-select_type", handler = classOf[BinSelectSrcHandler], usage = "select type: All, Unmap, ScOrdisc, UnmapAndScOrdisc, Select",
+    depends = { Array[String]("-bam_output") })
+  var selectType: BinSelectType = null
 
-  @Args4jOption(required = false, name = "-bam_output", usage = "specify BAM output path when run Adam & Bam select consecutively")
+  @Args4jOption(required = false, name = "-bam_output", usage = "specify BAM output path when run Adam & Bam select consecutively",
+    depends = { Array[String]("-select_type") })
   var bamOutputPath: String = ""
 
-  @Args4jOption(required = false, name = "-dict", usage = "dict path")
+  @Args4jOption(required = false, name = "-dict", usage = "dict path",
+    depends = { Array[String]("-select_type", "-bam_output") })
   var dict: String = ""
 
-  @Args4jOption(required = false, name = "-l", usage = "One line for each genomic region", handler = classOf[MapOptionHandler])
+  @Args4jOption(required = false, name = "-l", usage = "One line for each genomic region", handler = classOf[MapOptionHandler],
+    depends = { Array[String]("-select_type", "-bam_output") })
   var regions: java.util.HashMap[String, String] = _
 
   @Args4jOption(required = false, name = "-bed_region", usage = "use bed as region input")
@@ -922,7 +926,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
 
         renameWithXPrefix(args.outputPath, dict)
 
-        if (args.atgxBinSelect != null) {
+        if (args.selectType != null) {
           AtgxBinSelect.runAgtxBinSelect(args.outputPath, args.bamOutputPath, args)(sc)
         }
       } else if (args.partitionByStartPos) {
