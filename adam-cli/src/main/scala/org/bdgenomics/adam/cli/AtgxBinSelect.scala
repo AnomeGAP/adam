@@ -2,19 +2,19 @@ package org.bdgenomics.adam.cli
 
 import org.apache.avro.Schema
 import org.apache.avro.file.DataFileStream
-import org.apache.avro.specific.{ SpecificDatumReader, SpecificRecordBase }
+import org.apache.avro.specific.{SpecificDatumReader, SpecificRecordBase}
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{ FileSystem, Path }
-import org.apache.parquet.filter2.predicate.FilterApi.{ and, userDefined }
-import org.apache.parquet.filter2.predicate.{ FilterApi, FilterPredicate, Statistics, UserDefinedPredicate }
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.parquet.filter2.predicate.FilterApi.{and, userDefined}
+import org.apache.parquet.filter2.predicate.{FilterApi, FilterPredicate, Statistics, UserDefinedPredicate}
 import org.apache.spark.SparkContext
-import org.bdgenomics.adam.cli.BinSelect.BinSelect
+import org.bdgenomics.adam.cli.BinSelectType.BinSelectType
 import org.bdgenomics.adam.ds.ADAMContext.sparkContextToADAMContext
 import org.bdgenomics.adam.ds.read.AlignmentDataset
-import org.bdgenomics.adam.models.{ ReadGroup, ReadGroupDictionary, SequenceDictionary }
-import org.bdgenomics.formats.avro.{ Alignment, ProcessingStep, Reference, ReadGroup => RecordGroupMetadata }
-import org.kohsuke.args4j.spi.{ Messages, OneArgumentOptionHandler, Setter }
-import org.kohsuke.args4j.{ CmdLineException, CmdLineParser, OptionDef }
+import org.bdgenomics.adam.models.{ReadGroup, ReadGroupDictionary, SequenceDictionary}
+import org.bdgenomics.formats.avro.{Alignment, ProcessingStep, Reference, ReadGroup => RecordGroupMetadata}
+import org.kohsuke.args4j.spi.{Messages, OneArgumentOptionHandler, Setter}
+import org.kohsuke.args4j.{CmdLineException, CmdLineParser, OptionDef}
 import org.seqdoop.hadoop_bam.SAMFormat
 
 import java.io.InputStream
@@ -22,18 +22,17 @@ import java.util.concurrent.ForkJoinPool
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.reflect.ClassTag
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 object AtgxBinSelect {
   def runAgtxBinSelect(input: String, output: String, args: TransformAlignmentsArgs)(implicit sc: SparkContext): Unit = {
     val binSelect = new AtgxBinSelect(input, output, args.fileFormat, sc.hadoopConfiguration)
     args.atgxBinSelect match {
-      case BinSelect.All              => binSelect.selectAll()
-      case BinSelect.Unmap            => binSelect.selectUnmap()
-      case BinSelect.ScOrdisc         => binSelect.selectScOrdisc()
-      case BinSelect.UnmapAndScOrdisc => binSelect.selectUnmapAndScOrdisc()
-      case BinSelect.Select           => binSelect.select(args.dict, args.regions.asScala.toMap, args.bedAsRegions, args.poolSize)
-      case BinSelect.None             => ()
+      case BinSelectType.All              => binSelect.selectAll()
+      case BinSelectType.Unmap            => binSelect.selectUnmap()
+      case BinSelectType.ScOrdisc         => binSelect.selectScOrdisc()
+      case BinSelectType.UnmapAndScOrdisc => binSelect.selectUnmapAndScOrdisc()
+      case BinSelectType.Select           => binSelect.select(args.dict, args.regions.asScala.toMap, args.bedAsRegions, args.poolSize)
     }
   }
 }
@@ -338,23 +337,22 @@ class LowestFilter[T <: Comparable[T]](l: T) extends UserDefinedPredicate[T] wit
   override def keep(value: T): Boolean = value != null && (value.compareTo(l) >= 0)
 }
 
-object BinSelect extends Enumeration {
-  type BinSelect = Value
+object BinSelectType extends Enumeration {
+  type BinSelectType = Value
 
-  val All: BinSelect.Value = Value("All")
-  val Unmap: BinSelect.Value = Value("Unmap")
-  val ScOrdisc: BinSelect.Value = Value("ScOrdisc")
-  val UnmapAndScOrdisc: BinSelect.Value = Value("UnmapAndScOrdisc")
-  val Select: BinSelect.Value = Value("Select")
-  val None: BinSelect.Value = Value("None")
+  val All: BinSelectType.Value = Value("All")
+  val Unmap: BinSelectType.Value = Value("Unmap")
+  val ScOrdisc: BinSelectType.Value = Value("ScOrdisc")
+  val UnmapAndScOrdisc: BinSelectType.Value = Value("UnmapAndScOrdisc")
+  val Select: BinSelectType.Value = Value("Select")
 }
 
-class BinSelectSrcHandler(parser: CmdLineParser, option: OptionDef, setter: Setter[_ >: BinSelect])
-    extends OneArgumentOptionHandler[BinSelect](parser, option, setter) {
+class BinSelectSrcHandler(parser: CmdLineParser, option: OptionDef, setter: Setter[_ >: BinSelectType])
+    extends OneArgumentOptionHandler[BinSelectType](parser, option, setter) {
 
   @throws[CmdLineException]
-  protected def parse(argument: String): BinSelect = {
-    Try(BinSelect.withName(argument)) match {
+  protected def parse(argument: String): BinSelectType = {
+    Try(BinSelectType.withName(argument)) match {
       case Success(v) => v
       case Failure(_) => throw new CmdLineException(owner, Messages.ILLEGAL_OPERAND, option.toString, argument)
     }

@@ -26,20 +26,21 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.bdgenomics.adam.algorithms.consensus._
-import org.bdgenomics.adam.cli.AtgxTransformAlignments.{ mkPosBinIndices, renameWithXPrefix }
+import org.bdgenomics.adam.cli.AtgxTransformAlignments.{mkPosBinIndices, renameWithXPrefix}
+import org.bdgenomics.adam.cli.BinSelectType.BinSelectType
 import org.bdgenomics.adam.cli.FileSystemUtils._
 import org.bdgenomics.adam.ds.ADAMContext._
 import org.bdgenomics.adam.ds.ADAMSaveAnyArgs
-import org.bdgenomics.adam.ds.read.{ AlignmentDataset, QualityScoreBin }
+import org.bdgenomics.adam.ds.read.{AlignmentDataset, QualityScoreBin}
 import org.bdgenomics.adam.io.FastqRecordReader
-import org.bdgenomics.adam.models.{ ReferenceRegion, SnpTable }
-import org.bdgenomics.adam.projections.{ AlignmentField, Filter }
-import org.bdgenomics.formats.avro.{ Alignment, ProcessingStep }
+import org.bdgenomics.adam.models.{ReferenceRegion, SnpTable}
+import org.bdgenomics.adam.projections.{AlignmentField, Filter}
+import org.bdgenomics.formats.avro.{Alignment, ProcessingStep}
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.spi.MapOptionHandler
-import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
+import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
-import java.lang.{ Boolean => JBoolean }
+import java.lang.{Boolean => JBoolean}
 import java.time.Instant
 
 object TransformAlignments extends BDGCommandCompanion {
@@ -309,7 +310,7 @@ class TransformAlignmentsArgs extends Args4jBase with ADAMSaveAnyArgs with Parqu
   var maxReadLength: Int = 0
 
   @Args4jOption(required = false, name = "-atgx_bin_select", handler = classOf[BinSelectSrcHandler], usage = "select type: All, Unmap, ScOrdisc, UnmapAndScOrdisc, Select")
-  var atgxBinSelect = BinSelect.None
+  var atgxBinSelect: BinSelectType = null
 
   @Args4jOption(required = false, name = "-bam_output", usage = "specify BAM output path when run Adam & Bam select consecutively")
   var bamOutputPath: String = ""
@@ -921,9 +922,9 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
 
         renameWithXPrefix(args.outputPath, dict)
 
-        AtgxBinSelect.runAgtxBinSelect(args.outputPath, args.bamOutputPath, args)(sc)
-      } else if (args.atgxBinSelect != BinSelect.None) {
-        AtgxBinSelect.runAgtxBinSelect(args.inputPath, args.outputPath, args)(sc)
+        if (args.atgxBinSelect != null) {
+          AtgxBinSelect.runAgtxBinSelect(args.outputPath, args.bamOutputPath, args)(sc)
+        }
       } else if (args.partitionByStartPos) {
         if (outputDs.references.isEmpty) {
           warn("This dataset is not aligned and therefore will not benefit from being saved as a partitioned dataset")
