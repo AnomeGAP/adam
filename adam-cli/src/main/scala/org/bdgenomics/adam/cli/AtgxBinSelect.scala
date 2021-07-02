@@ -26,65 +26,64 @@ import scala.util.{Failure, Success, Try}
 
 object AtgxBinSelect {
   def runAgtxBinSelect(input: String, output: String, args: TransformAlignmentsArgs)(implicit sc: SparkContext): Unit = {
-    val binSelect = new AtgxBinSelect(input, output, args.fileFormat, sc.hadoopConfiguration)
+    val binSelect = new AtgxBinSelect(input, args.fileFormat, sc.hadoopConfiguration)
     args.selectType match {
-      case BinSelectType.All              => binSelect.selectAll()
-      case BinSelectType.Unmap            => binSelect.selectUnmap()
-      case BinSelectType.ScOrdisc         => binSelect.selectScOrdisc()
-      case BinSelectType.UnmapAndScOrdisc => binSelect.selectUnmapAndScOrdisc()
-      case BinSelectType.Select           => binSelect.select(args.dict, args.regions.asScala.toMap, args.bedAsRegions, args.poolSize)
+      case BinSelectType.All =>
+        binSelect.selectAll().saveAsSam(output, asType = binSelect.format, isSorted = true, asSingleFile = true)
+      case BinSelectType.Unmap =>
+        binSelect.selectUnmap().saveAsSam(output, asType = binSelect.format, isSorted = true, asSingleFile = true)
+      case BinSelectType.ScOrdisc =>
+        binSelect.selectScOrdisc().saveAsSam(output, asType = binSelect.format, isSorted = true, asSingleFile = true)
+      case BinSelectType.UnmapAndScOrdisc =>
+        binSelect.selectUnmapAndScOrdisc().saveAsSam(output, asType = binSelect.format, isSorted = true, asSingleFile = true)
+      case BinSelectType.Select =>
+        binSelect.select(args.dict, args.regions.asScala.toMap, args.bedAsRegions, args.poolSize)
+        .foreach { i =>
+          val ext = binSelect.ext
+          val outputPath = List(output, ext, i._1 + "." + ext).mkString("/")
+          // should not defer merging since we remove SeqPiper
+          i._2.saveAsSam(outputPath, asType = binSelect.format, isSorted = true, asSingleFile = true)
+        }
     }
   }
 }
 
-class AtgxBinSelect(input: String, output: String, fileFormat: String, hadoopConfig: Configuration) extends Serializable {
+class AtgxBinSelect(input: String, fileFormat: String, hadoopConfig: Configuration) extends Serializable {
   val partitionSize: Int = 1000000
   lazy val (sd, rgd, pgs) = loadAvroDictionary(hadoopConfig, input)
+  lazy val (ext, format) = getFileFormat(fileFormat, sd)
 
-  def selectAll()(implicit sc: SparkContext): Unit = {
-    val (_, format) = getFileFormat(fileFormat, sd)
+  def selectAll()(implicit sc: SparkContext): AlignmentDataset = {
     val rdd = sc.loadParquet[Alignment](fsWithPrefix("part-r-", input))
     AlignmentDataset(rdd, sd, rgd, pgs)
-      .saveAsSam(output, asType = format, isSorted = true, asSingleFile = true)
   }
 
-  def selectUnmap()(implicit sc: SparkContext): Unit = {
-    val (_, format) = getFileFormat(fileFormat, sd)
+  def selectUnmap()(implicit sc: SparkContext): AlignmentDataset = {
     val unmapPath = getUnmapPath(input)
     val rdd = sc.loadParquet[Alignment](unmapPath)
     AlignmentDataset(rdd, sd, rgd, pgs)
-      .saveAsSam(output, asType = format, isSorted = true, asSingleFile = true)
   }
 
-  def selectScOrdisc()(implicit sc: SparkContext): Unit = {
-    val (_, format) = getFileFormat(fileFormat, sd)
+  def selectScOrdisc()(implicit sc: SparkContext): AlignmentDataset = {
     val rdd = sc.loadParquet[Alignment](fsWithPrefix("X-SOFTCLIP-OR-DISCORDANT", input))
     AlignmentDataset(rdd, sd, rgd, pgs)
-      .saveAsSam(output, asType = format, isSorted = true, asSingleFile = true)
   }
 
-  def selectUnmapAndScOrdisc()(implicit sc: SparkContext): Unit = {
-    val (_, format) = getFileFormat(fileFormat, sd)
+  def selectUnmapAndScOrdisc()(implicit sc: SparkContext): AlignmentDataset = {
     val unmapPath = getUnmapPath(input)
     val rdd = sc.loadParquet[Alignment](unmapPath + "," + fsWithPrefix("X-SOFTCLIP-OR-DISCORDANT", input))
     AlignmentDataset(rdd, sd, rgd, pgs)
-      .saveAsSam(output, asType = format, isSorted = true, asSingleFile = true)
   }
 
   def select(dict: String,
              regions: Map[String, String],
              bedAsRegions: String,
-             poolSize: Int)(implicit sc: SparkContext): Unit = {
-    val (ext, format) = getFileFormat(fileFormat, sd)
+             poolSize: Int)(implicit sc: SparkContext): List[(String, AlignmentDataset)] = {
     val (_, _, _, posBinIndices) = mkPosBinIndices(sd)
 
     // collect contigs from sequence dictionary
     val contigNames = sd.records.map(x => x.name.toLowerCase -> x.name).toMap
     // (k, v) => (0, chr1:0-13090000,chr1:13090000-29900000 || X-SOFTCLIP[:Start-End])
-
-    val forkJoinPool = new ForkJoinPool(poolSize)
-    val parallel_regions = regions.par
-    parallel_regions.tasksupport = new ForkJoinTaskSupport(forkJoinPool)
 
     val part = {
       if (bedAsRegions == "") null
@@ -96,28 +95,31 @@ class AtgxBinSelect(input: String, output: String, fileFormat: String, hadoopCon
           .groupById()
     }
 
-    parallel_regions.foreach {
-      case (k, v) =>
-        val regions =
-          if (bedAsRegions != "") {
-            part(k).toArray
-          } else
-            v.split(",")
+    val forkJoinPool = new ForkJoinPool(poolSize)
+    val parallel_regions = if (part == null ) regions.par else part.mapValues(_ => "").par
+    parallel_regions.tasksupport = new ForkJoinTaskSupport(forkJoinPool)
 
-        val files =
-          if (v.startsWith("X-")) {
-            fsWithPrefix(regions(0).split(":")(0), input)
-          } else {
-            collectParquetFileNames(input, regions, partitionSize, contigNames, posBinIndices)
-          }
+    val result = parallel_regions.map { case (k, v) =>
+      val regions =
+        if (bedAsRegions != "") {
+          part(k).toArray
+        } else
+          v.split(",")
 
-        val preds = regions.flatMap(mkRegionPredicates).reduceOption(FilterApi.or)
-        val rdd = sc.loadParquet[Alignment](files, preds)
-        AlignmentDataset(rdd, sd, rgd, pgs)
-          .saveAsSam(mergePaths(output, ext, k + "." + ext),
-            asType = format, isSorted = true, asSingleFile = true)
-    }
+      val files =
+        if (v.startsWith("X-")) {
+          fsWithPrefix(regions(0).split(":")(0), input)
+        } else {
+          collectParquetFileNames(input, regions, partitionSize, contigNames, posBinIndices)
+        }
+
+      val preds = regions.flatMap(mkRegionPredicates).reduceOption(FilterApi.or)
+      val rdd = sc.loadParquet[Alignment](files, preds)
+      k -> AlignmentDataset(rdd, sd, rgd, pgs)
+    }.toList
+
     forkJoinPool.shutdown()
+    result
   }
 
   private def loadAvro[T <: SpecificRecordBase](hadoopConfig: Configuration, filename: String, schema: Schema)(implicit tTag: ClassTag[T]): Seq[T] = {
