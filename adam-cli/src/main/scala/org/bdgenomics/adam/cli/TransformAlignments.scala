@@ -33,7 +33,7 @@ import org.bdgenomics.adam.ds.ADAMContext._
 import org.bdgenomics.adam.ds.ADAMSaveAnyArgs
 import org.bdgenomics.adam.ds.read.{AlignmentDataset, QualityScoreBin}
 import org.bdgenomics.adam.io.FastqRecordReader
-import org.bdgenomics.adam.models.{ReferenceRegion, SnpTable}
+import org.bdgenomics.adam.models.{ReferenceRegion, SequenceDictionary, SnpTable}
 import org.bdgenomics.adam.projections.{AlignmentField, Filter}
 import org.bdgenomics.formats.avro.{Alignment, ProcessingStep}
 import org.bdgenomics.utils.cli._
@@ -660,111 +660,7 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
 
       args.configureCramFormat(sc)
 
-      val loadedDs: AlignmentDataset =
-        if (args.forceLoadBam) {
-          if (args.regionPredicate != null) {
-            val loci = ReferenceRegion.fromString(args.regionPredicate)
-            sc.loadIndexedBam(args.inputPath, loci)
-          } else {
-            sc.loadBam(args.inputPath)
-          }
-        } else if (args.forceLoadFastq) {
-          sc.loadFastq(args.inputPath, Option(args.pairedFastqFile), Option(args.fastqReadGroup), stringency)
-        } else if (args.forceLoadIFastq) {
-          sc.loadInterleavedFastq(args.inputPath)
-        } else if (args.forceLoadParquet ||
-          args.useAlignedReadPredicate ||
-          args.limitProjection) {
-          val pred = if (args.useAlignedReadPredicate) {
-            Some(FilterApi.eq[JBoolean, BooleanColumn](
-              FilterApi.booleanColumn("readMapped"), true))
-          } else if (args.regionPredicate != null) {
-            Some(ReferenceRegion.createPredicate(
-              ReferenceRegion.fromString(args.regionPredicate).toSeq: _*
-            ))
-          } else {
-            None
-          }
-
-          val proj = if (args.limitProjection) {
-            Some(Filter(AlignmentField.attributes,
-              AlignmentField.originalQualityScores))
-          } else {
-            None
-          }
-
-          sc.loadParquetAlignments(args.inputPath,
-            optPredicate = pred,
-            optProjection = proj)
-        } else {
-          val loadedReads = sc.loadAlignments(
-            args.inputPath,
-            optPathName2 = Option(args.pairedFastqFile),
-            optReadGroup = Option(args.fastqReadGroup),
-            stringency = stringency
-          )
-
-          if (args.regionPredicate != null) {
-            val loci = ReferenceRegion.fromString(args.regionPredicate)
-            loadedReads.filterByOverlappingRegions(loci)
-          } else {
-            loadedReads
-          }
-        }
-
-      val aDs: AlignmentDataset = if (args.disableProcessingStep) {
-        loadedDs
-      } else {
-        // add program info
-        val about = new About()
-        val version = if (about.isSnapshot()) {
-          "%s--%s".format(about.version(), about.commit())
-        } else {
-          about.version()
-        }
-        val epoch = Instant.now.getEpochSecond
-        val processingStep = ProcessingStep.newBuilder
-          .setId("ADAM_%d".format(epoch))
-          .setProgramName("org.bdgenomics.adam.cli.TransformAlignments")
-          .setVersion(version)
-          .setCommandLine(args.command)
-          .build
-        loadedDs.addProcessingStep(processingStep)
-      }
-
-      val rdd = aDs.rdd
-      val sd = aDs.references
-      val rgd = aDs.readGroups
-      val pgs = aDs.processingSteps
-
-      // Optionally load a second RDD and concatenate it with the first.
-      // Paired-FASTQ loading is avoided here because that wouldn't make sense
-      // given that it's already happening above.
-      val concatOpt =
-        Option(args.concatFilename).map(concatFilename =>
-          if (args.forceLoadBam) {
-            sc.loadBam(concatFilename)
-          } else if (args.forceLoadIFastq) {
-            sc.loadInterleavedFastq(concatFilename)
-          } else if (args.forceLoadParquet) {
-            sc.loadParquetAlignments(concatFilename)
-          } else {
-            sc.loadAlignments(
-              concatFilename,
-              optReadGroup = Option(args.fastqReadGroup)
-            )
-          })
-
-      // if we have a second rdd that we are merging in, process the merger here
-      val (mergedRdd, mergedSd, mergedRgd, mergedPgs) = concatOpt.fold((rdd, sd, rgd, pgs))(t => {
-        (rdd ++ t.rdd, sd ++ t.references, rgd ++ t.readGroups, pgs ++ t.processingSteps)
-      })
-
-      // make a new aligned read rdd, that merges the two RDDs together
-      val newDs = AlignmentDataset(mergedRdd, mergedSd, mergedRgd, mergedPgs)
-
-      // run our transformation
-      val outputDs = this.apply(newDs)
+      val (outputDs, originSd, mergedSd) = init(sc)
 
       // if we are sorting by reference, we must strip the indices from the sequence dictionary
       // and sort the sequence dictionary
@@ -914,10 +810,10 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         tenXBarcodeTrimmer.map(_.statistics())
       } else if (args.atgxTransform) {
         val disableSVDup = args.disableSVDup
-        val dict = mkPosBinIndices(sd)
+        val dict = mkPosBinIndices(originSd)
         val rdd = outputDs
           .rdd
-          .mapPartitions(new AtgxTransformAlignments().transform(sd, _, disableSVDup))
+          .mapPartitions(new AtgxTransformAlignments().transform(originSd, _, disableSVDup))
           .repartitionAndSortWithinPartitions(new NewPosBinPartitioner(dict))
           .map(_._2)
 
@@ -944,6 +840,116 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
       if (args.stopSparkContext)
         sc.stop
     }
+  }
+
+  def init(sc: SparkContext): (AlignmentDataset, SequenceDictionary, SequenceDictionary) = {
+    val loadedDs: AlignmentDataset =
+      if (args.forceLoadBam) {
+        if (args.regionPredicate != null) {
+          val loci = ReferenceRegion.fromString(args.regionPredicate)
+          sc.loadIndexedBam(args.inputPath, loci)
+        } else {
+          sc.loadBam(args.inputPath)
+        }
+      } else if (args.forceLoadFastq) {
+        sc.loadFastq(args.inputPath, Option(args.pairedFastqFile), Option(args.fastqReadGroup), stringency)
+      } else if (args.forceLoadIFastq) {
+        sc.loadInterleavedFastq(args.inputPath)
+      } else if (args.forceLoadParquet ||
+        args.useAlignedReadPredicate ||
+        args.limitProjection) {
+        val pred = if (args.useAlignedReadPredicate) {
+          Some(FilterApi.eq[JBoolean, BooleanColumn](
+            FilterApi.booleanColumn("readMapped"), true))
+        } else if (args.regionPredicate != null) {
+          Some(ReferenceRegion.createPredicate(
+            ReferenceRegion.fromString(args.regionPredicate).toSeq: _*
+          ))
+        } else {
+          None
+        }
+
+        val proj = if (args.limitProjection) {
+          Some(Filter(AlignmentField.attributes,
+            AlignmentField.originalQualityScores))
+        } else {
+          None
+        }
+
+        sc.loadParquetAlignments(args.inputPath,
+          optPredicate = pred,
+          optProjection = proj)
+      } else {
+        val loadedReads = sc.loadAlignments(
+          args.inputPath,
+          optPathName2 = Option(args.pairedFastqFile),
+          optReadGroup = Option(args.fastqReadGroup),
+          stringency = stringency
+        )
+
+        if (args.regionPredicate != null) {
+          val loci = ReferenceRegion.fromString(args.regionPredicate)
+          loadedReads.filterByOverlappingRegions(loci)
+        } else {
+          loadedReads
+        }
+      }
+
+    val aDs: AlignmentDataset = if (args.disableProcessingStep) {
+      loadedDs
+    } else {
+      // add program info
+      val about = new About()
+      val version = if (about.isSnapshot()) {
+        "%s--%s".format(about.version(), about.commit())
+      } else {
+        about.version()
+      }
+      val epoch = Instant.now.getEpochSecond
+      val processingStep = ProcessingStep.newBuilder
+        .setId("ADAM_%d".format(epoch))
+        .setProgramName("org.bdgenomics.adam.cli.TransformAlignments")
+        .setVersion(version)
+        .setCommandLine(args.command)
+        .build
+      loadedDs.addProcessingStep(processingStep)
+    }
+
+    val rdd = aDs.rdd
+    val sd = aDs.references
+    val rgd = aDs.readGroups
+    val pgs = aDs.processingSteps
+
+    // Optionally load a second RDD and concatenate it with the first.
+    // Paired-FASTQ loading is avoided here because that wouldn't make sense
+    // given that it's already happening above.
+    val concatOpt =
+    Option(args.concatFilename).map(concatFilename =>
+      if (args.forceLoadBam) {
+        sc.loadBam(concatFilename)
+      } else if (args.forceLoadIFastq) {
+        sc.loadInterleavedFastq(concatFilename)
+      } else if (args.forceLoadParquet) {
+        sc.loadParquetAlignments(concatFilename)
+      } else {
+        sc.loadAlignments(
+          concatFilename,
+          optReadGroup = Option(args.fastqReadGroup)
+        )
+      })
+
+    // if we have a second rdd that we are merging in, process the merger here
+    val (mergedRdd, mergedSd, mergedRgd, mergedPgs) = concatOpt.fold((rdd, sd, rgd, pgs))(t => {
+      (rdd ++ t.rdd, sd ++ t.references, rgd ++ t.readGroups, pgs ++ t.processingSteps)
+    })
+
+    // make a new aligned read rdd, that merges the two RDDs together
+    val newDs = AlignmentDataset(mergedRdd, mergedSd, mergedRgd, mergedPgs)
+
+    // run our transformation
+    val outputDs = this.apply(newDs)
+
+    (outputDs, sd, mergedSd)
   }
 
   private def createKnownSnpsTable(sc: SparkContext): SnpTable = {
