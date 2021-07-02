@@ -2,26 +2,26 @@ package org.bdgenomics.adam.cli
 
 import org.apache.avro.Schema
 import org.apache.avro.file.DataFileStream
-import org.apache.avro.specific.{SpecificDatumReader, SpecificRecordBase}
+import org.apache.avro.specific.{ SpecificDatumReader, SpecificRecordBase }
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.parquet.filter2.predicate.FilterApi.{and, userDefined}
-import org.apache.parquet.filter2.predicate.{FilterApi, FilterPredicate, Statistics, UserDefinedPredicate}
+import org.apache.hadoop.fs.{ FileSystem, Path }
+import org.apache.parquet.filter2.predicate.FilterApi.{ and, userDefined }
+import org.apache.parquet.filter2.predicate.{ FilterApi, FilterPredicate, Statistics, UserDefinedPredicate }
 import org.apache.spark.SparkContext
 import org.bdgenomics.adam.cli.BinSelectType.BinSelectType
 import org.bdgenomics.adam.ds.ADAMContext.sparkContextToADAMContext
 import org.bdgenomics.adam.ds.read.AlignmentDataset
-import org.bdgenomics.adam.models.{ReadGroup, ReadGroupDictionary, SequenceDictionary}
-import org.bdgenomics.formats.avro.{Alignment, ProcessingStep, Reference, ReadGroup => RecordGroupMetadata}
-import org.kohsuke.args4j.spi.{Messages, OneArgumentOptionHandler, Setter}
-import org.kohsuke.args4j.{CmdLineException, CmdLineParser, OptionDef}
+import org.bdgenomics.adam.models.{ ReadGroup, ReadGroupDictionary, SequenceDictionary }
+import org.bdgenomics.formats.avro.{ Alignment, ProcessingStep, Reference, ReadGroup => RecordGroupMetadata }
+import org.kohsuke.args4j.spi.{ Messages, OneArgumentOptionHandler, Setter }
+import org.kohsuke.args4j.{ CmdLineException, CmdLineParser, OptionDef }
 import org.seqdoop.hadoop_bam.SAMFormat
 
 import java.io.InputStream
 import java.util.concurrent.ForkJoinPool
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.reflect.ClassTag
-import scala.util.{Failure, Success, Try}
+import scala.util.{ Failure, Success, Try }
 
 object AtgxBinSelect {
   case class SelectInfo(
@@ -30,7 +30,7 @@ object AtgxBinSelect {
     regions: Map[String, String],
     bedAsRegions: String,
     format: String,
-  poolSize: Int)
+    poolSize: Int)
 
   def runAgtxBinSelect(input: String, output: String, info: SelectInfo)(implicit sc: SparkContext): Unit = {
     val binSelect = new AtgxBinSelect(input, info.format, sc.hadoopConfiguration)
