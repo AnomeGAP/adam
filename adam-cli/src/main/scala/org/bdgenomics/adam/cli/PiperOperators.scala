@@ -4,7 +4,7 @@ import cats.data.EitherT
 import com.atgenomix.operators.{ GenericFormat, Partition, Source }
 import net.general.piper.dsl.Dataset
 import net.general.piper.dsl.Dataset.NopDataset
-import net.general.piper.dsl.RddDataset.StringRddDataset
+import net.general.piper.dsl.RddDataset.{ BaseStringContent, StringRddDataset }
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
@@ -19,9 +19,13 @@ import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.reflect.{ ClassTag, classTag }
 
 object PiperOperators {
+  implicit class EnhancedAlignment(val alignment: Alignment) extends BaseStringContent {
+    def toStringContent: String = alignment.getSequence
+  }
+
   case class PiperAlignmentDataset(
       inputId: Int,
-      rdd: RDD[Alignment],
+      rdd: RDD[EnhancedAlignment],
       override val localPath: String,
       override val url: Option[String],
       alignmentDataset: Option[AlignmentDataset],
@@ -30,8 +34,8 @@ object PiperOperators {
       ctg: Option[String] = None,
       ext: Option[String] = None,
       format: Option[SAMFormat] = None) extends StringRddDataset(inputId, localPath, url) {
-    override type T = Alignment
-    override val ct: ClassTag[Alignment] = classTag[Alignment]
+    override type T = EnhancedAlignment
+    override val ct: ClassTag[EnhancedAlignment] = classTag[EnhancedAlignment]
   }
 
   class ChunkedBamSource(
@@ -58,7 +62,7 @@ object PiperOperators {
       val tra = new TransformAlignments(args)
       val (outputDs, originSd, _) = tra.init(spark.sparkContext)
 
-      PiperAlignmentDataset(inputId, outputDs.rdd, local, Some(url), Some(outputDs), args, originSd)
+      PiperAlignmentDataset(inputId, outputDs.rdd.map(EnhancedAlignment), local, Some(url), Some(outputDs), args, originSd)
     }
   }
 
@@ -89,6 +93,7 @@ object PiperOperators {
       val aDs = ds.alignmentDataset.getOrElse(throw new RuntimeException(""))
 
       val rdd = ds.rdd
+        .map(_.alignment)
         .mapPartitions(new AtgxTransformAlignments().transform(ds.dict, _, disableSVDup))
         .repartitionAndSortWithinPartitions(new NewPosBinPartitioner(dict))
         .map(_._2)
