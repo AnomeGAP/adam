@@ -26,22 +26,24 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.bdgenomics.adam.algorithms.consensus._
-import org.bdgenomics.adam.cli.AtgxTransformAlignments.{ mkPosBinIndices, renameWithXPrefix }
+import org.bdgenomics.adam.cli.AtgxBinSelect.SelectInfo
+import org.bdgenomics.adam.cli.AtgxTransformAlignments.{mkPosBinIndices, renameWithXPrefix}
 import org.bdgenomics.adam.cli.BinSelectType.BinSelectType
 import org.bdgenomics.adam.cli.FileSystemUtils._
 import org.bdgenomics.adam.ds.ADAMContext._
 import org.bdgenomics.adam.ds.ADAMSaveAnyArgs
-import org.bdgenomics.adam.ds.read.{ AlignmentDataset, QualityScoreBin }
+import org.bdgenomics.adam.ds.read.{AlignmentDataset, QualityScoreBin}
 import org.bdgenomics.adam.io.FastqRecordReader
-import org.bdgenomics.adam.models.{ ReferenceRegion, SequenceDictionary, SnpTable }
-import org.bdgenomics.adam.projections.{ AlignmentField, Filter }
-import org.bdgenomics.formats.avro.{ Alignment, ProcessingStep }
+import org.bdgenomics.adam.models.{ReferenceRegion, SequenceDictionary, SnpTable}
+import org.bdgenomics.adam.projections.{AlignmentField, Filter}
+import org.bdgenomics.formats.avro.{Alignment, ProcessingStep}
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.spi.MapOptionHandler
-import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
+import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
-import java.lang.{ Boolean => JBoolean }
+import java.lang.{Boolean => JBoolean}
 import java.time.Instant
+import scala.collection.JavaConverters.mapAsScalaMapConverter
 
 object TransformAlignments extends BDGCommandCompanion {
   val commandName = "transformAlignments"
@@ -823,7 +825,8 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         renameWithXPrefix(args.outputPath, dict)
 
         if (args.selectType != null) {
-          AtgxBinSelect.runAgtxBinSelect(args.outputPath, args.bamOutputPath, args)(sc)
+          val info = SelectInfo(args.selectType, args.dict, args.regions.asScala.toMap, args.bedAsRegions, args.fileFormat, args.poolSize)
+          AtgxBinSelect.runAgtxBinSelect(args.outputPath, args.bamOutputPath, info)(sc)
         }
       } else if (args.partitionByStartPos) {
         if (outputDs.references.isEmpty) {

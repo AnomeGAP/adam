@@ -2,32 +2,39 @@ package org.bdgenomics.adam.cli
 
 import org.apache.avro.Schema
 import org.apache.avro.file.DataFileStream
-import org.apache.avro.specific.{ SpecificDatumReader, SpecificRecordBase }
+import org.apache.avro.specific.{SpecificDatumReader, SpecificRecordBase}
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{ FileSystem, Path }
-import org.apache.parquet.filter2.predicate.FilterApi.{ and, userDefined }
-import org.apache.parquet.filter2.predicate.{ FilterApi, FilterPredicate, Statistics, UserDefinedPredicate }
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.parquet.filter2.predicate.FilterApi.{and, userDefined}
+import org.apache.parquet.filter2.predicate.{FilterApi, FilterPredicate, Statistics, UserDefinedPredicate}
 import org.apache.spark.SparkContext
 import org.bdgenomics.adam.cli.BinSelectType.BinSelectType
 import org.bdgenomics.adam.ds.ADAMContext.sparkContextToADAMContext
 import org.bdgenomics.adam.ds.read.AlignmentDataset
-import org.bdgenomics.adam.models.{ ReadGroup, ReadGroupDictionary, SequenceDictionary }
-import org.bdgenomics.formats.avro.{ Alignment, ProcessingStep, Reference, ReadGroup => RecordGroupMetadata }
-import org.kohsuke.args4j.spi.{ Messages, OneArgumentOptionHandler, Setter }
-import org.kohsuke.args4j.{ CmdLineException, CmdLineParser, OptionDef }
+import org.bdgenomics.adam.models.{ReadGroup, ReadGroupDictionary, SequenceDictionary}
+import org.bdgenomics.formats.avro.{Alignment, ProcessingStep, Reference, ReadGroup => RecordGroupMetadata}
+import org.kohsuke.args4j.spi.{Messages, OneArgumentOptionHandler, Setter}
+import org.kohsuke.args4j.{CmdLineException, CmdLineParser, OptionDef}
 import org.seqdoop.hadoop_bam.SAMFormat
 
 import java.io.InputStream
 import java.util.concurrent.ForkJoinPool
-import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.reflect.ClassTag
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 object AtgxBinSelect {
-  def runAgtxBinSelect(input: String, output: String, args: TransformAlignmentsArgs)(implicit sc: SparkContext): Unit = {
-    val binSelect = new AtgxBinSelect(input, args.fileFormat, sc.hadoopConfiguration)
-    args.selectType match {
+  case class SelectInfo(
+    selectType: BinSelectType,
+    dict: String,
+    regions: Map[String, String],
+    bedAsRegions: String,
+    format: String,
+  poolSize: Int)
+
+  def runAgtxBinSelect(input: String, output: String, info: SelectInfo)(implicit sc: SparkContext): Unit = {
+    val binSelect = new AtgxBinSelect(input, info.format, sc.hadoopConfiguration)
+    info.selectType match {
       case BinSelectType.All =>
         binSelect.selectAll().saveAsSam(output, asType = binSelect.format, isSorted = true, asSingleFile = true)
       case BinSelectType.Unmap =>
@@ -37,7 +44,7 @@ object AtgxBinSelect {
       case BinSelectType.UnmapAndScOrdisc =>
         binSelect.selectUnmapAndScOrdisc().saveAsSam(output, asType = binSelect.format, isSorted = true, asSingleFile = true)
       case BinSelectType.Select =>
-        binSelect.select(args.dict, args.regions.asScala.toMap, args.bedAsRegions, args.poolSize)
+        binSelect.select(info.dict, info.regions, info.bedAsRegions, info.poolSize)
           .foreach { i =>
             val ext = binSelect.ext
             val outputPath = List(output, ext, i._1 + "." + ext).mkString("/")

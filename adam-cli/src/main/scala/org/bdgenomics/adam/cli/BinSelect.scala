@@ -1,9 +1,10 @@
 package org.bdgenomics.adam.cli
 
 import org.apache.spark.SparkContext
+import org.bdgenomics.adam.cli.AtgxBinSelect.SelectInfo
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.spi.MapOptionHandler
-import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
+import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 
@@ -49,14 +50,8 @@ class BinSelect(val args: BinSelectArgs)
   val companion = BinSelect
 
   def run(sc: SparkContext) {
-    val binSelect = new AtgxBinSelect(args.inputPath, args.outputPath, args.fileFormat, sc.hadoopConfiguration)
-    args.selectType match {
-      case BinSelectType.All              => binSelect.selectAll()(sc)
-      case BinSelectType.Unmap            => binSelect.selectUnmap()(sc)
-      case BinSelectType.ScOrdisc         => binSelect.selectScOrdisc()(sc)
-      case BinSelectType.UnmapAndScOrdisc => binSelect.selectUnmapAndScOrdisc()(sc)
-      case BinSelectType.Select           => binSelect.select(args.dict, args.regions.asScala.toMap, args.bedAsRegions, args.poolSize)(sc)
-    }
+  val info = SelectInfo(args.selectType, args.dict, args.regions.asScala.toMap, args.bedAsRegions, args.fileFormat, args.poolSize)
+    AtgxBinSelect.runAgtxBinSelect(args.inputPath, args.outputPath, info)(sc)
   }
 }
 
