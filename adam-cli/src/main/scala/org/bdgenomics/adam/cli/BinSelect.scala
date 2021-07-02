@@ -3,7 +3,7 @@ package org.bdgenomics.adam.cli
 import org.apache.spark.SparkContext
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.spi.MapOptionHandler
-import org.kohsuke.args4j.{Argument, Option => Args4jOption}
+import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
 
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 
@@ -44,7 +44,7 @@ class BinSelectArgs extends Args4jBase {
 }
 
 class BinSelect(val args: BinSelectArgs)
-  extends BDGSparkCommand[BinSelectArgs] {
+    extends BDGSparkCommand[BinSelectArgs] {
 
   val companion = BinSelect
 

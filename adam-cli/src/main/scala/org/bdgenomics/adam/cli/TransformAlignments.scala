@@ -26,21 +26,21 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.bdgenomics.adam.algorithms.consensus._
-import org.bdgenomics.adam.cli.AtgxTransformAlignments.{mkPosBinIndices, renameWithXPrefix}
+import org.bdgenomics.adam.cli.AtgxTransformAlignments.{ mkPosBinIndices, renameWithXPrefix }
 import org.bdgenomics.adam.cli.BinSelectType.BinSelectType
 import org.bdgenomics.adam.cli.FileSystemUtils._
 import org.bdgenomics.adam.ds.ADAMContext._
 import org.bdgenomics.adam.ds.ADAMSaveAnyArgs
-import org.bdgenomics.adam.ds.read.{AlignmentDataset, QualityScoreBin}
+import org.bdgenomics.adam.ds.read.{ AlignmentDataset, QualityScoreBin }
 import org.bdgenomics.adam.io.FastqRecordReader
-import org.bdgenomics.adam.models.{ReferenceRegion, SequenceDictionary, SnpTable}
-import org.bdgenomics.adam.projections.{AlignmentField, Filter}
-import org.bdgenomics.formats.avro.{Alignment, ProcessingStep}
+import org.bdgenomics.adam.models.{ ReferenceRegion, SequenceDictionary, SnpTable }
+import org.bdgenomics.adam.projections.{ AlignmentField, Filter }
+import org.bdgenomics.formats.avro.{ Alignment, ProcessingStep }
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.spi.MapOptionHandler
-import org.kohsuke.args4j.{Argument, Option => Args4jOption}
+import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
 
-import java.lang.{Boolean => JBoolean}
+import java.lang.{ Boolean => JBoolean }
 import java.time.Instant
 
 object TransformAlignments extends BDGCommandCompanion {
@@ -924,19 +924,19 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
     // Paired-FASTQ loading is avoided here because that wouldn't make sense
     // given that it's already happening above.
     val concatOpt =
-    Option(args.concatFilename).map(concatFilename =>
-      if (args.forceLoadBam) {
-        sc.loadBam(concatFilename)
-      } else if (args.forceLoadIFastq) {
-        sc.loadInterleavedFastq(concatFilename)
-      } else if (args.forceLoadParquet) {
-        sc.loadParquetAlignments(concatFilename)
-      } else {
-        sc.loadAlignments(
-          concatFilename,
-          optReadGroup = Option(args.fastqReadGroup)
-        )
-      })
+      Option(args.concatFilename).map(concatFilename =>
+        if (args.forceLoadBam) {
+          sc.loadBam(concatFilename)
+        } else if (args.forceLoadIFastq) {
+          sc.loadInterleavedFastq(concatFilename)
+        } else if (args.forceLoadParquet) {
+          sc.loadParquetAlignments(concatFilename)
+        } else {
+          sc.loadAlignments(
+            concatFilename,
+            optReadGroup = Option(args.fastqReadGroup)
+          )
+        })
 
     // if we have a second rdd that we are merging in, process the merger here
     val (mergedRdd, mergedSd, mergedRgd, mergedPgs) = concatOpt.fold((rdd, sd, rgd, pgs))(t => {

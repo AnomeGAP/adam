@@ -1,14 +1,14 @@
 package org.bdgenomics.adam.cli
 
 import cats.data.EitherT
-import com.atgenomix.operators.{GenericFormat, Partition, Source}
+import com.atgenomix.operators.{ GenericFormat, Partition, Source }
 import net.general.piper.dsl.Dataset
 import net.general.piper.dsl.Dataset.NopDataset
 import net.general.piper.dsl.RddDataset.StringRddDataset
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import org.bdgenomics.adam.cli.AtgxTransformAlignments.{mkPosBinIndices, renameWithXPrefix}
+import org.bdgenomics.adam.cli.AtgxTransformAlignments.{ mkPosBinIndices, renameWithXPrefix }
 import org.bdgenomics.adam.ds.read.AlignmentDataset
 import org.bdgenomics.adam.models.SequenceDictionary
 import org.bdgenomics.formats.avro.Alignment
@@ -16,39 +16,37 @@ import org.seqdoop.hadoop_bam.SAMFormat
 import utils.misc.AuditInfo
 
 import scala.collection.JavaConverters.mapAsScalaMapConverter
-import scala.reflect.{ClassTag, classTag}
+import scala.reflect.{ ClassTag, classTag }
 
 object PiperOperators {
   case class PiperAlignmentDataset(
-    inputId: Int,
-    rdd: RDD[Alignment],
-    override val localPath: String,
-    override val url: Option[String],
-    alignmentDataset: Option[AlignmentDataset],
-    args: TransformAlignmentsArgs,
-    dict: SequenceDictionary,
-    ctg: Option[String] = None,
-    ext: Option[String] = None,
-    format: Option[SAMFormat] = None
-  ) extends StringRddDataset(inputId, localPath, url) {
+      inputId: Int,
+      rdd: RDD[Alignment],
+      override val localPath: String,
+      override val url: Option[String],
+      alignmentDataset: Option[AlignmentDataset],
+      args: TransformAlignmentsArgs,
+      dict: SequenceDictionary,
+      ctg: Option[String] = None,
+      ext: Option[String] = None,
+      format: Option[SAMFormat] = None) extends StringRddDataset(inputId, localPath, url) {
     override type T = Alignment
     override val ct: ClassTag[Alignment] = classTag[Alignment]
   }
 
   class ChunkedBamSource(
-    override val inputId: Int,
-    url: EitherT[Option, Seq[Seq[String]], Seq[String]],
-    codec: Option[String],
-    auth: String,
-    localPath: EitherT[Option, Seq[Seq[String]], Seq[String]],
-    override val extraInfo: Map[String, Any],
-    override val auditInfo: AuditInfo
-  ) extends Source(inputId, url, codec, auth, localPath, extraInfo, auditInfo) {
+      override val inputId: Int,
+      url: EitherT[Option, Seq[Seq[String]], Seq[String]],
+      codec: Option[String],
+      auth: String,
+      localPath: EitherT[Option, Seq[Seq[String]], Seq[String]],
+      override val extraInfo: Map[String, Any],
+      override val auditInfo: AuditInfo) extends Source(inputId, url, codec, auth, localPath, extraInfo, auditInfo) {
 
     override def readImpl(url: String, local: String)(implicit spark: SparkSession): PiperAlignmentDataset = {
       val cmdLine = Seq(
         url,
-        "",   // we don't save file here so empty string for output is fine
+        "", // we don't save file here so empty string for output is fine
         "-force_load_bam",
         "-atgx_transform",
         "-parquet_compression_codec",
@@ -65,12 +63,11 @@ object PiperOperators {
   }
 
   case class BamPartition(
-    inputId: Int,
-    parallelism: String,
-    ref: Option[String] = None,
-    extraInfo: Map[String, Any],
-    auditInfo: AuditInfo
-  ) extends Partition(inputId, parallelism, ref, extraInfo, auditInfo) {
+      inputId: Int,
+      parallelism: String,
+      ref: Option[String] = None,
+      extraInfo: Map[String, Any],
+      auditInfo: AuditInfo) extends Partition(inputId, parallelism, ref, extraInfo, auditInfo) {
 
     override def partitionImpl(ds: Dataset)(implicit spark: SparkSession): List[Dataset] = {
       ds match {
@@ -147,13 +144,12 @@ object PiperOperators {
   }
 
   class PartitionedBamFormat(
-    override val inputId: Int,
-    url: EitherT[Option, Seq[Seq[String]], Seq[String]],
-    auth: String,
-    localPath: EitherT[Option, Seq[Seq[String]], Seq[String]],
-    override val extraInfo: Map[String, Any],
-    override val auditInfo: AuditInfo
-  ) extends GenericFormat(inputId, url, auth, localPath, extraInfo, auditInfo) {
+      override val inputId: Int,
+      url: EitherT[Option, Seq[Seq[String]], Seq[String]],
+      auth: String,
+      localPath: EitherT[Option, Seq[Seq[String]], Seq[String]],
+      override val extraInfo: Map[String, Any],
+      override val auditInfo: AuditInfo) extends GenericFormat(inputId, url, auth, localPath, extraInfo, auditInfo) {
 
     override def writeImpl(ds: Dataset, url: String)(implicit spark: SparkSession): Dataset = {
       ds match {
