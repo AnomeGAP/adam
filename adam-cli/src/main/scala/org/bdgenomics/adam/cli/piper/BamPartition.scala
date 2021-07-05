@@ -4,8 +4,8 @@ import com.atgenomix.operators.Partition
 import net.general.piper.dsl.Dataset
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
-import org.bdgenomics.adam.cli.AtgxTransformAlignments.{ mkPosBinIndices, renameWithXPrefix }
-import org.bdgenomics.adam.cli.{ AtgxBinSelect, AtgxTransformAlignments, BinSelectType, NewPosBinPartitioner, TransformAlignmentsArgs }
+import org.bdgenomics.adam.cli.AtgxTransformAlignments.{mkPosBinIndices, renameWithXPrefix}
+import org.bdgenomics.adam.cli._
 import org.bdgenomics.adam.ds.read.AlignmentDataset
 import utils.misc.AuditInfo
 
@@ -21,18 +21,20 @@ case class BamPartition(
   override def partitionImpl(ds: Dataset)(implicit spark: SparkSession): List[Dataset] = {
     ds match {
       case p: PiperAlignmentDataset =>
-        atgxTransform(p)
-        binSelect(p)
+        val parquetOutput = atgxTransform(p)
+        binSelect(p, parquetOutput)
       case _ =>
         throw new RuntimeException("Operator type mismatch")
     }
   }
 
-  def atgxTransform(ds: PiperAlignmentDataset): Unit = {
-    ds.args.outputPath = extraInfo.get("parquet-output")
+  def atgxTransform(ds: PiperAlignmentDataset): String = {
+    val output = extraInfo.get("parquet-output")
       .map(_.asInstanceOf[String])
       .getOrElse(throw new RuntimeException("should specify `parquet-output`"))
-    val args = ds.args
+    val cmdLine = Array(ds.url.get, output, "-parquet_compression_codec", "SNAPPY")
+    val args = org.bdgenomics.utils.cli.Args4j[TransformAlignmentsArgs](cmdLine)
+
     val disableSVDup = args.disableSVDup
     val dict = mkPosBinIndices(ds.dict)
     val aDs = ds.alignmentDataset.getOrElse(throw new RuntimeException(""))
@@ -47,9 +49,10 @@ case class BamPartition(
       .save(args, isSorted = args.sortByReadName || args.sortByReferencePosition || args.sortByReferencePositionAndIndex)
 
     renameWithXPrefix(args.outputPath, dict)
+    args.outputPath
   }
 
-  def binSelect(ds: PiperAlignmentDataset)(implicit spark: SparkSession): List[Dataset] = {
+  def binSelect(ds: PiperAlignmentDataset, parquetPath: String)(implicit spark: SparkSession): List[Dataset] = {
     val poolSize = extraInfo.get("pool-size").map(_.asInstanceOf[String]).getOrElse("10")
     val selectType = extraInfo.get("select-type").map(_.asInstanceOf[String]).getOrElse("Select")
     val region = extraInfo.get("region").map(_.asInstanceOf[String]).getOrElse("")
@@ -57,7 +60,8 @@ case class BamPartition(
       .flatMap(i => List("-l", i))
       .toSeq
     val cmdLine = Seq(
-      ds.args.outputPath,
+      parquetPath,
+      "",
       "-select_type",
       selectType,
       "-dict",

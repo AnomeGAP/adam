@@ -2,7 +2,6 @@ package org.bdgenomics.adam.cli.piper
 
 import net.general.piper.dsl.RddDataset.{ BaseStringContent, StringRddDataset }
 import org.apache.spark.rdd.RDD
-import org.bdgenomics.adam.cli.TransformAlignmentsArgs
 import org.bdgenomics.adam.cli.piper.PiperAlignmentDataset.EnhancedAlignment
 import org.bdgenomics.adam.ds.read.AlignmentDataset
 import org.bdgenomics.adam.models.SequenceDictionary
@@ -24,7 +23,6 @@ case class PiperAlignmentDataset(
     override val localPath: String,
     override val url: Option[String],
     alignmentDataset: Option[AlignmentDataset],
-    args: TransformAlignmentsArgs,
     dict: SequenceDictionary,
     ctg: Option[String] = None,
     ext: Option[String] = None,

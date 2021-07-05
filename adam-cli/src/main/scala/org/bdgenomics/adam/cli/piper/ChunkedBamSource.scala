@@ -30,6 +30,6 @@ class ChunkedBamSource(
     val tra = new TransformAlignments(args)
     val (outputDs, originSd, _) = tra.init(spark.sparkContext)
 
-    PiperAlignmentDataset(inputId, outputDs.rdd.map(PiperAlignmentDataset.EnhancedAlignment), local, Some(url), Some(outputDs), args, originSd)
+    PiperAlignmentDataset(inputId, outputDs.rdd.map(PiperAlignmentDataset.EnhancedAlignment), local, Some(url), Some(outputDs), originSd)
   }
 }
