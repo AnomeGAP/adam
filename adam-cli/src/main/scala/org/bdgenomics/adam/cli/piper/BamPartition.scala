@@ -34,7 +34,6 @@ case class BamPartition(
       .getOrElse(throw new RuntimeException("should specify `parquet-output`"))
     val cmdLine = Array(ds.url.get, output, "-parquet_compression_codec", "SNAPPY")
     val args = org.bdgenomics.utils.cli.Args4j[TransformAlignmentsArgs](cmdLine)
-
     val disableSVDup = args.disableSVDup
     val dict = mkPosBinIndices(ds.dict)
     val aDs = ds.alignmentDataset.getOrElse(throw new RuntimeException(""))
@@ -44,11 +43,10 @@ case class BamPartition(
       .mapPartitions(new AtgxTransformAlignments().transform(ds.dict, _, disableSVDup))
       .repartitionAndSortWithinPartitions(new NewPosBinPartitioner(dict))
       .map(_._2)
-
     AlignmentDataset(rdd, aDs.references, aDs.readGroups, aDs.processingSteps)
       .save(args, isSorted = args.sortByReadName || args.sortByReferencePosition || args.sortByReferencePositionAndIndex)
-
     renameWithXPrefix(args.outputPath, dict)
+
     args.outputPath
   }
 
@@ -71,10 +69,8 @@ case class BamPartition(
       "-pool-size",
       poolSize
     ) ++ region
-
     val args = org.bdgenomics.utils.cli.Args4j[TransformAlignmentsArgs](cmdLine.toArray)
-    args.command = cmdLine.mkString(" ")
-    println(args.command)
+
     implicit val sc: SparkContext = spark.sparkContext
     val binSelect = new AtgxBinSelect(args.inputPath, args.fileFormat, spark.sparkContext.hadoopConfiguration)
     BinSelectType.withName(selectType) match {
