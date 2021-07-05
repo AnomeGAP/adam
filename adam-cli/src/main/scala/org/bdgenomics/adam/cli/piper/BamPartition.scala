@@ -4,20 +4,19 @@ import com.atgenomix.operators.Partition
 import net.general.piper.dsl.Dataset
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
-import org.bdgenomics.adam.cli.AtgxTransformAlignments.{mkPosBinIndices, renameWithXPrefix}
-import org.bdgenomics.adam.cli.{AtgxBinSelect, AtgxTransformAlignments, BinSelectType, NewPosBinPartitioner, TransformAlignmentsArgs}
+import org.bdgenomics.adam.cli.AtgxTransformAlignments.{ mkPosBinIndices, renameWithXPrefix }
+import org.bdgenomics.adam.cli.{ AtgxBinSelect, AtgxTransformAlignments, BinSelectType, NewPosBinPartitioner, TransformAlignmentsArgs }
 import org.bdgenomics.adam.ds.read.AlignmentDataset
 import utils.misc.AuditInfo
 
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 
 case class BamPartition(
-  inputId: Int,
-  parallelism: String,
-  ref: Option[String] = None,
-  extraInfo: Map[String, Any],
-  auditInfo: AuditInfo
-) extends Partition(inputId, parallelism, ref, extraInfo, auditInfo) {
+    inputId: Int,
+    parallelism: String,
+    ref: Option[String] = None,
+    extraInfo: Map[String, Any],
+    auditInfo: AuditInfo) extends Partition(inputId, parallelism, ref, extraInfo, auditInfo) {
 
   override def partitionImpl(ds: Dataset)(implicit spark: SparkSession): List[Dataset] = {
     ds match {

@@ -1,6 +1,6 @@
 package org.bdgenomics.adam.cli.piper
 
-import net.general.piper.dsl.RddDataset.{BaseStringContent, StringRddDataset}
+import net.general.piper.dsl.RddDataset.{ BaseStringContent, StringRddDataset }
 import org.apache.spark.rdd.RDD
 import org.bdgenomics.adam.cli.TransformAlignmentsArgs
 import org.bdgenomics.adam.cli.piper.PiperAlignmentDataset.EnhancedAlignment
@@ -9,7 +9,7 @@ import org.bdgenomics.adam.models.SequenceDictionary
 import org.bdgenomics.formats.avro.Alignment
 import org.seqdoop.hadoop_bam.SAMFormat
 
-import scala.reflect.{ClassTag, classTag}
+import scala.reflect.{ ClassTag, classTag }
 
 object PiperAlignmentDataset {
 
@@ -19,17 +19,16 @@ object PiperAlignmentDataset {
 }
 
 case class PiperAlignmentDataset(
-  inputId: Int,
-  rdd: RDD[EnhancedAlignment],
-  override val localPath: String,
-  override val url: Option[String],
-  alignmentDataset: Option[AlignmentDataset],
-  args: TransformAlignmentsArgs,
-  dict: SequenceDictionary,
-  ctg: Option[String] = None,
-  ext: Option[String] = None,
-  format: Option[SAMFormat] = None
-) extends StringRddDataset(inputId, localPath, url) {
+    inputId: Int,
+    rdd: RDD[EnhancedAlignment],
+    override val localPath: String,
+    override val url: Option[String],
+    alignmentDataset: Option[AlignmentDataset],
+    args: TransformAlignmentsArgs,
+    dict: SequenceDictionary,
+    ctg: Option[String] = None,
+    ext: Option[String] = None,
+    format: Option[SAMFormat] = None) extends StringRddDataset(inputId, localPath, url) {
   override type T = EnhancedAlignment
   override val ct: ClassTag[EnhancedAlignment] = classTag[EnhancedAlignment]
 }

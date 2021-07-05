@@ -8,13 +8,12 @@ import org.apache.spark.sql.SparkSession
 import utils.misc.AuditInfo
 
 class PartitionedBamFormat(
-  override val inputId: Int,
-  url: EitherT[Option, Seq[Seq[String]], Seq[String]],
-  auth: String,
-  localPath: EitherT[Option, Seq[Seq[String]], Seq[String]],
-  override val extraInfo: Map[String, Any],
-  override val auditInfo: AuditInfo
-) extends GenericFormat(inputId, url, auth, localPath, extraInfo, auditInfo) {
+    override val inputId: Int,
+    url: EitherT[Option, Seq[Seq[String]], Seq[String]],
+    auth: String,
+    localPath: EitherT[Option, Seq[Seq[String]], Seq[String]],
+    override val extraInfo: Map[String, Any],
+    override val auditInfo: AuditInfo) extends GenericFormat(inputId, url, auth, localPath, extraInfo, auditInfo) {
 
   override def writeImpl(ds: Dataset, url: String)(implicit spark: SparkSession): Dataset = {
     ds match {
