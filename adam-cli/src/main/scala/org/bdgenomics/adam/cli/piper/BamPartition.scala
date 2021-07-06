@@ -29,9 +29,7 @@ case class BamPartition(
   }
 
   def atgxTransform(ds: PiperAlignmentDataset): String = {
-    val output = extraInfo.get("parquet-output")
-      .map(_.asInstanceOf[String])
-      .getOrElse(throw new RuntimeException("should specify `parquet-output`"))
+    val output = ds.url.get.stripSuffix("/") + ".parquet"
     val cmdLine = Array(ds.url.get, output, "-parquet_compression_codec", "SNAPPY")
     val args = org.bdgenomics.utils.cli.Args4j[TransformAlignmentsArgs](cmdLine)
     val disableSVDup = args.disableSVDup
