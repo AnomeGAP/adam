@@ -57,7 +57,9 @@ case class BamPartition(
       .toSeq
     val cmdLine = Seq(
       parquetPath,
-      "",
+      "", // just for TransformAlignmentsArgs validation
+      "-bam_output", // just for TransformAlignmentsArgs validation
+      "", // just for TransformAlignmentsArgs validation
       "-select_type",
       selectType,
       "-dict",
@@ -85,7 +87,8 @@ case class BamPartition(
         val aDs = binSelect.selectUnmapAndScOrdisc()
         List(ds.copy(alignmentDataset = Some(aDs), format = binSelect.format))
       case BinSelectType.Select =>
-        binSelect.select(args.dict, args.regions.asScala.toMap, args.bedAsRegions, args.poolSize)
+        val regions = if (args.regions == null) Map.empty[String, String] else args.regions.asScala.toMap
+        binSelect.select(args.dict, regions, args.bedAsRegions, args.poolSize)
           .map(i => ds.copy(alignmentDataset = Some(i._2), ctg = Some(i._1), ext = Some(binSelect.ext), format = binSelect.format))
     }
   }
