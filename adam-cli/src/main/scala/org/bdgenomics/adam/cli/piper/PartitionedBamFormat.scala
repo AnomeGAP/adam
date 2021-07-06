@@ -5,6 +5,7 @@ import com.atgenomix.operators.GenericFormat
 import net.general.piper.dsl.Dataset
 import net.general.piper.dsl.Dataset.NopDataset
 import org.apache.spark.sql.SparkSession
+import org.bdgenomics.adam.cli.piper.Util.gen2ToHdfs
 import utils.misc.AuditInfo
 
 class PartitionedBamFormat(
@@ -22,7 +23,7 @@ class PartitionedBamFormat(
           // in original BinSelect, we'll create a folder named by ext under url.
           // but we don't do that here
           val outputPath = p.ctg.map(c => List(url, c + "." + p.ext).mkString("/")).getOrElse(url)
-          i.saveAsSam(outputPath, asType = p.format, isSorted = true, asSingleFile = true)
+          i.saveAsSam(gen2ToHdfs(outputPath), asType = p.format, isSorted = true, asSingleFile = true)
         }
       case _ => throw new RuntimeException("DSL err: should be StringRddDataset")
     }

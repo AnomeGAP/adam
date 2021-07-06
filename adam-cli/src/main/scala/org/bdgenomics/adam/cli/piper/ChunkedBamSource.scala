@@ -3,6 +3,7 @@ package org.bdgenomics.adam.cli.piper
 import cats.data.EitherT
 import com.atgenomix.operators.Source
 import org.apache.spark.sql.SparkSession
+import org.bdgenomics.adam.cli.piper.Util.gen2ToHdfs
 import org.bdgenomics.adam.cli.{ TransformAlignments, TransformAlignmentsArgs }
 import utils.misc.AuditInfo
 
@@ -16,8 +17,9 @@ class ChunkedBamSource(
     override val auditInfo: AuditInfo) extends Source(inputId, url, codec, auth, localPath, extraInfo, auditInfo) {
 
   override def readImpl(url: String, local: String)(implicit spark: SparkSession): PiperAlignmentDataset = {
+    val hdfsSrc = gen2ToHdfs(url)
     val cmdLine = Seq(
-      url,
+      hdfsSrc,
       "", // we don't save file here so empty string for output is fine
       "-force_load_bam",
       "-atgx_transform",
@@ -30,6 +32,6 @@ class ChunkedBamSource(
     val tra = new TransformAlignments(args)
     val (outputDs, originSd, _) = tra.init(spark.sparkContext)
 
-    PiperAlignmentDataset(inputId, outputDs.rdd.map(PiperAlignmentDataset.EnhancedAlignment), local, Some(url), Some(outputDs), originSd)
+    PiperAlignmentDataset(inputId, outputDs.rdd.map(PiperAlignmentDataset.EnhancedAlignment), local, Some(hdfsSrc), Some(outputDs), originSd)
   }
 }

@@ -4,7 +4,7 @@ import com.atgenomix.operators.Partition
 import net.general.piper.dsl.Dataset
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
-import org.bdgenomics.adam.cli.AtgxTransformAlignments.{mkPosBinIndices, renameWithXPrefix}
+import org.bdgenomics.adam.cli.AtgxTransformAlignments.{ mkPosBinIndices, renameWithXPrefix }
 import org.bdgenomics.adam.cli._
 import org.bdgenomics.adam.ds.read.AlignmentDataset
 import utils.misc.AuditInfo
