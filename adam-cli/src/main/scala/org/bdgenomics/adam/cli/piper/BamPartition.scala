@@ -51,7 +51,7 @@ case class BamPartition(
   def binSelect(ds: PiperAlignmentDataset, parquetPath: String)(implicit spark: SparkSession): List[Dataset] = {
     val poolSize = extraInfo.get("pool-size").map(_.asInstanceOf[String]).getOrElse("10")
     val selectType = extraInfo.get("select-type").map(_.asInstanceOf[String]).getOrElse("Select")
-    val region = extraInfo.get("region").map(_.asInstanceOf[String]).getOrElse("")
+    val region = extraInfo.get("region").map(_.asInstanceOf[String]).getOrElse(",")
       .split(",")
       .flatMap(i => List("-l", i))
       .toSeq
