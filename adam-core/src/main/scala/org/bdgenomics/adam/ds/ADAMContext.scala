@@ -2032,7 +2032,8 @@ class ADAMContext(@transient val sc: SparkContext) extends Serializable with Log
         }).fold((SequenceDictionary.empty,
           ReadGroupDictionary.empty,
           Seq[ProcessingStep]()))((kv1, kv2) => {
-          (kv1._1 ++ kv2._1, kv1._2 ++ kv2._2, kv1._3 ++ kv2._3)
+          val pgs = (kv1._3 ++ kv2._3).map(i => i.getId -> i).toMap.values.toSeq
+          (kv1._1 ++ kv2._1, kv1._2 ++ kv2._2, pgs)
         })
 
     val job = Job.getInstance(sc.hadoopConfiguration)
