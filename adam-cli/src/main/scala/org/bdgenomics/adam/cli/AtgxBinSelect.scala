@@ -106,6 +106,7 @@ class AtgxBinSelect(input: String, fileFormat: String, hadoopConfig: Configurati
     val parallel_regions = if (part == null) regions.par else part.mapValues(_ => "").par
     parallel_regions.tasksupport = new ForkJoinTaskSupport(forkJoinPool)
 
+    println(s"parallel_regions: ${parallel_regions.size}")
     val result = parallel_regions.map {
       case (k, v) =>
         val regions =

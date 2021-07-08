@@ -70,6 +70,7 @@ case class BamPartition(
       poolSize
     ) ++ region
     val args = org.bdgenomics.utils.cli.Args4j[TransformAlignmentsArgs](cmdLine.toArray)
+    println(cmdLine.mkString(" "))
 
     implicit val sc: SparkContext = spark.sparkContext
     val binSelect = new AtgxBinSelect(args.inputPath, args.fileFormat, spark.sparkContext.hadoopConfiguration)
