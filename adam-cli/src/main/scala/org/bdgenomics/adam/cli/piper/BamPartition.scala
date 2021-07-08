@@ -87,7 +87,7 @@ case class BamPartition(
       case BinSelectType.Select =>
         val regions = if (args.regions == null) Map.empty[String, String] else args.regions.asScala.toMap
         binSelect.select(args.dict, regions, args.bedAsRegions)
-          .map(i => ds.copy(alignmentDataset = Some(i._2), ctg = Some(i._1), ext = Some(binSelect.ext), format = binSelect.format))
+          .map(i => ds.copy(alignmentDataset = Some(i._2), part = Some(i._1), ext = Some(binSelect.ext), format = binSelect.format))
     }
   }
 }

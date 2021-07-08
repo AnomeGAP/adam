@@ -24,7 +24,7 @@ case class PiperAlignmentDataset(
     override val url: Option[String],
     alignmentDataset: Option[AlignmentDataset],
     dict: SequenceDictionary,
-    ctg: Option[String] = None,
+    part: Option[String] = None,
     ext: Option[String] = None,
     format: Option[SAMFormat] = None) extends StringRddDataset(inputId, localPath, url) {
   override type T = EnhancedAlignment
