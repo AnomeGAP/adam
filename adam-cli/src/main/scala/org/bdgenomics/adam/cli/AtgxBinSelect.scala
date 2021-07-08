@@ -44,13 +44,15 @@ object AtgxBinSelect {
       case BinSelectType.UnmapAndScOrdisc =>
         binSelect.selectUnmapAndScOrdisc().saveAsSam(output, asType = binSelect.format, isSorted = true, asSingleFile = true)
       case BinSelectType.Select =>
-        binSelect.select(info.dict, info.regions, info.bedAsRegions, info.poolSize)
-          .foreach { i =>
-            val ext = binSelect.ext
-            val outputPath = List(output, ext, i._1 + "." + ext).mkString("/")
-            // should not defer merging since we remove SeqPiper
-            i._2.saveAsSam(outputPath, asType = binSelect.format, isSorted = true, asSingleFile = true)
-          }
+        val forkJoinPool = new ForkJoinPool(info.poolSize)
+        val parallel_regions = binSelect.select(info.dict, info.regions, info.bedAsRegions).par
+        parallel_regions.tasksupport = new ForkJoinTaskSupport(forkJoinPool)
+        parallel_regions.map { i =>
+          val ext = binSelect.ext
+          val outputPath = List(output, ext, i._1 + "." + ext).mkString("/")
+          // should not defer merging since we remove SeqPiper
+          i._2.saveAsSam(outputPath, asType = binSelect.format, isSorted = true, asSingleFile = true)
+        }.toList
     }
   }
 }
@@ -84,8 +86,7 @@ class AtgxBinSelect(input: String, fileFormat: String, hadoopConfig: Configurati
 
   def select(dict: String,
              regions: Map[String, String],
-             bedAsRegions: String,
-             poolSize: Int)(implicit sc: SparkContext): List[(String, AlignmentDataset)] = {
+             bedAsRegions: String)(implicit sc: SparkContext): List[(String, AlignmentDataset)] = {
     val (_, _, _, posBinIndices) = mkPosBinIndices(sd)
 
     // collect contigs from sequence dictionary
@@ -101,13 +102,8 @@ class AtgxBinSelect(input: String, fileFormat: String, hadoopConfig: Configurati
           new Path(dict))
           .groupById()
     }
-
-    val forkJoinPool = new ForkJoinPool(poolSize)
-    val parallel_regions = if (part == null) regions.par else part.mapValues(_ => "").par
-    parallel_regions.tasksupport = new ForkJoinTaskSupport(forkJoinPool)
-
-    println(s"parallel_regions: ${parallel_regions.size}")
-    val result = parallel_regions.map {
+    val regionInfo = if (part == null) regions else part.mapValues(_ => "")
+    regionInfo.map {
       case (k, v) =>
         val regions =
           if (bedAsRegions != "") {
@@ -126,9 +122,6 @@ class AtgxBinSelect(input: String, fileFormat: String, hadoopConfig: Configurati
         val rdd = sc.loadParquet[Alignment](files, preds)
         k -> AlignmentDataset(rdd, sd, rgd, pgs)
     }.toList
-
-    forkJoinPool.shutdown()
-    result
   }
 
   private def loadAvro[T <: SpecificRecordBase](hadoopConfig: Configuration, filename: String, schema: Schema)(implicit tTag: ClassTag[T]): Seq[T] = {
