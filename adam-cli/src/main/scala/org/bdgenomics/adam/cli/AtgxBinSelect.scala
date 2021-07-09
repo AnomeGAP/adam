@@ -47,12 +47,12 @@ object AtgxBinSelect {
         val forkJoinPool = new ForkJoinPool(info.poolSize)
         val parallel_regions = binSelect.select(info.dict, info.regions, info.bedAsRegions).par
         parallel_regions.tasksupport = new ForkJoinTaskSupport(forkJoinPool)
-        parallel_regions.map { i =>
+        parallel_regions.foreach { i =>
           val ext = binSelect.ext
           val outputPath = List(output, ext, i._1 + "." + ext).mkString("/")
           // should not defer merging since we remove SeqPiper
           i._2.saveAsSam(outputPath, asType = binSelect.format, isSorted = true, asSingleFile = true)
-        }.toList
+        }
     }
   }
 }
