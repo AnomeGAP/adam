@@ -21,15 +21,15 @@ case class BamPartition(
   override def partitionImpl(ds: Dataset)(implicit spark: SparkSession): List[Dataset] = {
     ds match {
       case p: PiperAlignmentDataset =>
-        val parquetOutput = atgxTransform(p)
+        val parquetOutput = atgxTransform(p, spark.sparkContext.applicationId)
         binSelect(p, parquetOutput)
       case _ =>
         throw new RuntimeException("Operator type mismatch")
     }
   }
 
-  def atgxTransform(ds: PiperAlignmentDataset): String = {
-    val output = ds.url.get.stripSuffix("/") + ".parquet"
+  def atgxTransform(ds: PiperAlignmentDataset, appId: String): String = {
+    val output = ds.url.get.stripSuffix("/") + s"-$appId.parquet"
     val cmdLine = Array(ds.url.get, output, "-parquet_compression_codec", "SNAPPY")
     val args = org.bdgenomics.utils.cli.Args4j[TransformAlignmentsArgs](cmdLine)
     val disableSVDup = args.disableSVDup
