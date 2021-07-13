@@ -49,6 +49,7 @@ case class BamPartition(
   }
 
   def binSelect(ds: PiperAlignmentDataset, parquetPath: String)(implicit spark: SparkSession): List[Dataset] = {
+    val poolSize = extraInfo.get("pool-size").map(_.asInstanceOf[String]).getOrElse("10")
     val selectType = extraInfo.get("select-type").map(_.asInstanceOf[String]).getOrElse("Select")
     val region = extraInfo.get("region").map(_.asInstanceOf[String]).getOrElse(",")
       .split(",")
@@ -64,7 +65,9 @@ case class BamPartition(
       "-dict",
       ref.get,
       "-bed_region",
-      parallelism
+      parallelism,
+      "-pool-size",
+      poolSize
     ) ++ region
     val args = org.bdgenomics.utils.cli.Args4j[TransformAlignmentsArgs](cmdLine.toArray)
     println(cmdLine.mkString(" "))
@@ -86,7 +89,7 @@ case class BamPartition(
         List(ds.copy(alignmentDataset = Some(aDs), format = binSelect.format))
       case BinSelectType.Select =>
         val regions = if (args.regions == null) Map.empty[String, String] else args.regions.asScala.toMap
-        binSelect.select(args.dict, regions, args.bedAsRegions)
+        binSelect.select(args.dict, regions, args.bedAsRegions, args.poolSize)
           .map(i => ds.copy(alignmentDataset = Some(i._2), part = Some(i._1), ext = Some(binSelect.ext), format = binSelect.format))
     }
   }

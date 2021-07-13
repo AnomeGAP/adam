@@ -8,6 +8,7 @@ import org.apache.hadoop.fs.{ FileSystem, Path }
 import org.apache.parquet.filter2.predicate.FilterApi.{ and, userDefined }
 import org.apache.parquet.filter2.predicate.{ FilterApi, FilterPredicate, Statistics, UserDefinedPredicate }
 import org.apache.spark.SparkContext
+import org.apache.spark.storage.StorageLevel
 import org.bdgenomics.adam.cli.BinSelectType.BinSelectType
 import org.bdgenomics.adam.ds.ADAMContext.sparkContextToADAMContext
 import org.bdgenomics.adam.ds.read.AlignmentDataset
@@ -44,16 +45,13 @@ object AtgxBinSelect {
       case BinSelectType.UnmapAndScOrdisc =>
         binSelect.selectUnmapAndScOrdisc().saveAsSam(output, asType = binSelect.format, isSorted = true, asSingleFile = true)
       case BinSelectType.Select =>
-        val forkJoinPool = new ForkJoinPool(info.poolSize)
-        val parallel_regions = binSelect.select(info.dict, info.regions, info.bedAsRegions).par
-        parallel_regions.tasksupport = new ForkJoinTaskSupport(forkJoinPool)
-        parallel_regions.foreach { i =>
-          val ext = binSelect.ext
-          val outputPath = List(output, ext, i._1 + "." + ext).mkString("/")
-          // should not defer merging since we remove SeqPiper
-          i._2.saveAsSam(outputPath, asType = binSelect.format, isSorted = true, asSingleFile = true)
-        }
-        forkJoinPool.shutdown()
+        binSelect.select(info.dict, info.regions, info.bedAsRegions, info.poolSize)
+          .foreach { i =>
+            val ext = binSelect.ext
+            val outputPath = List(output, ext, i._1 + "." + ext).mkString("/")
+            // should not defer merging since we remove SeqPiper
+            i._2.saveAsSam(outputPath, asType = binSelect.format, isSorted = true, asSingleFile = true)
+          }
     }
   }
 }
@@ -87,7 +85,8 @@ class AtgxBinSelect(input: String, fileFormat: String, hadoopConfig: Configurati
 
   def select(dict: String,
              regions: Map[String, String],
-             bedAsRegions: String)(implicit sc: SparkContext): List[(String, AlignmentDataset)] = {
+             bedAsRegions: String,
+             poolSize: Int)(implicit sc: SparkContext): List[(String, AlignmentDataset)] = {
     val (_, _, _, posBinIndices) = mkPosBinIndices(sd)
 
     // collect contigs from sequence dictionary
@@ -103,8 +102,13 @@ class AtgxBinSelect(input: String, fileFormat: String, hadoopConfig: Configurati
           new Path(dict))
           .groupById()
     }
-    val regionInfo = if (part == null) regions else part.mapValues(_ => "")
-    regionInfo.map {
+
+    val forkJoinPool = new ForkJoinPool(poolSize)
+    val parallel_regions = if (part == null) regions.par else part.mapValues(_ => "").par
+    parallel_regions.tasksupport = new ForkJoinTaskSupport(forkJoinPool)
+
+    println(s"parallel_regions: ${parallel_regions.size}")
+    val result = parallel_regions.map {
       case (k, v) =>
         val regions =
           if (bedAsRegions != "") {
@@ -120,9 +124,13 @@ class AtgxBinSelect(input: String, fileFormat: String, hadoopConfig: Configurati
           }
 
         val preds = regions.flatMap(mkRegionPredicates).reduceOption(FilterApi.or)
-        val rdd = sc.loadParquet[Alignment](files, preds)
-        k -> AlignmentDataset(rdd, sd, rgd, pgs)
+        val cachedRdd = sc.loadParquet[Alignment](files, preds).persist(StorageLevel.MEMORY_AND_DISK_SER)
+        cachedRdd.count
+        k -> AlignmentDataset(cachedRdd, sd, rgd, pgs)
     }.toList
+
+    forkJoinPool.shutdown()
+    result
   }
 
   private def loadAvro[T <: SpecificRecordBase](hadoopConfig: Configuration, filename: String, schema: Schema)(implicit tTag: ClassTag[T]): Seq[T] = {

@@ -8,9 +8,6 @@ import org.apache.spark.sql.SparkSession
 import org.bdgenomics.adam.cli.piper.Util.gen2ToHdfs
 import utils.misc.AuditInfo
 
-import java.util.concurrent.ForkJoinPool
-import scala.collection.parallel.ForkJoinTaskSupport
-
 class PartitionedBamFormat(
     override val inputId: Int,
     url: EitherT[Option, Seq[Seq[String]], Seq[String]],
@@ -20,18 +17,12 @@ class PartitionedBamFormat(
     override val auditInfo: AuditInfo) extends GenericFormat(inputId, url, auth, localPath, extraInfo, auditInfo) {
 
   override def writeDatasets(ds: List[Dataset])(implicit spark: SparkSession): List[Dataset] = {
-    val poolSize = extraInfo.get("pool-size").map(_.asInstanceOf[String]).getOrElse("10").toInt
     val dst = url.fold(_.flatten, identity)
       .filter(_.nonEmpty)
       .getOrElse(throw new RuntimeException("DSL err: url should not be empty"))
       .head
 
-    val forkJoinPool = new ForkJoinPool(poolSize)
-    val parallelDs = ds.par
-    parallelDs.tasksupport = new ForkJoinTaskSupport(forkJoinPool)
-    val result = parallelDs.map { d => writeImpl(d, dst) }.toList
-    forkJoinPool.shutdown()
-    result
+    ds.par.map { d => writeImpl(d, dst) }.toList
   }
 
   override def writeImpl(ds: Dataset, url: String)(implicit spark: SparkSession): Dataset = {
