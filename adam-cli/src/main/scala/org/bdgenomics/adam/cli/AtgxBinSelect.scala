@@ -53,6 +53,7 @@ object AtgxBinSelect {
           // should not defer merging since we remove SeqPiper
           i._2.saveAsSam(outputPath, asType = binSelect.format, isSorted = true, asSingleFile = true)
         }
+        forkJoinPool.shutdown()
     }
   }
 }

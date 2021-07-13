@@ -29,7 +29,9 @@ class PartitionedBamFormat(
     val forkJoinPool = new ForkJoinPool(poolSize)
     val parallelDs = ds.par
     parallelDs.tasksupport = new ForkJoinTaskSupport(forkJoinPool)
-    parallelDs.map { d => writeImpl(d, dst) }.toList
+    val result = parallelDs.map { d => writeImpl(d, dst) }.toList
+    forkJoinPool.shutdown()
+    result
   }
 
   override def writeImpl(ds: Dataset, url: String)(implicit spark: SparkSession): Dataset = {
