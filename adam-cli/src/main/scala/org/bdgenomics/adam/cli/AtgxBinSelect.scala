@@ -50,7 +50,7 @@ object AtgxBinSelect {
             val ext = binSelect.ext
             val outputPath = List(output, ext, i._1 + "." + ext).mkString("/")
             // should not defer merging since we remove SeqPiper
-            i._2.saveAsSam(outputPath, asType = binSelect.format, isSorted = true, asSingleFile = true)
+            i._2.saveAsSam(outputPath, asType = binSelect.format, isSorted = true, asSingleFile = true, disableFastConcat = true)
           }
     }
   }
