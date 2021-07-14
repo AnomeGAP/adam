@@ -22,7 +22,7 @@ class PartitionedBamFormat(
       .getOrElse(throw new RuntimeException("DSL err: url should not be empty"))
       .head
 
-    ds.par.map { d => writeImpl(d, dst) }.toList
+    ds.map { d => writeImpl(d, dst) }
   }
 
   override def writeImpl(ds: Dataset, url: String)(implicit spark: SparkSession): Dataset = {
