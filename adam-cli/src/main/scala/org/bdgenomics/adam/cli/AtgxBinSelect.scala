@@ -50,7 +50,9 @@ object AtgxBinSelect {
             val ext = binSelect.ext
             val outputPath = List(output, ext, i._1 + "." + ext).mkString("/")
             // should not defer merging since we remove SeqPiper
-            i._2.saveAsSam(outputPath, asType = binSelect.format, isSorted = true, asSingleFile = true, disableFastConcat = true)
+            // according to https://github.com/bigdatagenomics/adam/issues/2326
+            // just keep disableFastConcat = false
+            i._2.saveAsSam(outputPath, asType = binSelect.format, isSorted = true, asSingleFile = true)
           }
     }
   }

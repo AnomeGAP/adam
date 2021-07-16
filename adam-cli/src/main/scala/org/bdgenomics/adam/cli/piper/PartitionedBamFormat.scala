@@ -32,9 +32,9 @@ class PartitionedBamFormat(
           // in original BinSelect, we'll create a folder named by ext under url.
           // but we don't do that here
           val outputPath = p.part.map(c => List(url, c + "." + p.ext.get).mkString("/")).getOrElse(url)
-          // If asSingleFile is true and deferMerging is false,
-          // disables the use of the parallel file merging engine
-          i.saveAsSam(gen2ToHdfs(outputPath), asType = p.format, isSorted = true, asSingleFile = true, disableFastConcat = true)
+          // according to https://github.com/bigdatagenomics/adam/issues/2326
+          // just keep disableFastConcat = false
+          i.saveAsSam(gen2ToHdfs(outputPath), asType = p.format, isSorted = true, asSingleFile = true)
         }
       case _ => throw new RuntimeException("DSL err: should be StringRddDataset")
     }
