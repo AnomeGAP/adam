@@ -825,7 +825,8 @@ class TransformAlignments(protected val args: TransformAlignmentsArgs) extends B
         renameWithXPrefix(args.outputPath, dict)
 
         if (args.selectType != null) {
-          val info = SelectInfo(args.selectType, args.dict, args.regions.asScala.toMap, args.bedAsRegions, args.fileFormat, args.poolSize)
+          val regions = if (args.regions == null) Map.empty[String, String] else args.regions.asScala.toMap
+          val info = SelectInfo(args.selectType, args.dict, regions, args.bedAsRegions, args.fileFormat, args.poolSize)
           AtgxBinSelect.runAgtxBinSelect(args.outputPath, args.bamOutputPath, info)(sc)
         }
       } else if (args.partitionByStartPos) {
