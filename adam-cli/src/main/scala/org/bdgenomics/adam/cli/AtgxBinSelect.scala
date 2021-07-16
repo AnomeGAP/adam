@@ -48,7 +48,9 @@ object AtgxBinSelect {
         binSelect.select(info.dict, info.regions, info.bedAsRegions, info.poolSize)
           .foreach { i =>
             val ext = binSelect.ext
-            val outputPath = List(output, ext, i._1 + "." + ext).mkString("/")
+            // in original BinSelect, we'll create a folder named by ext under url.
+            // but we don't do that here
+            val outputPath = List(output, i._1 + "." + ext).mkString("/")
             // should not defer merging since we remove SeqPiper
             // according to https://github.com/bigdatagenomics/adam/issues/2326
             // just keep disableFastConcat = false
